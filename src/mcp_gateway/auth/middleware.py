@@ -182,6 +182,10 @@ PUBLIC_PATHS = {
     "/oauth/callback",
     "/oauth/token",
     "/oauth/register",
+    "/oauth/device",
+    "/oauth/device/verify",
+    "/oauth/device/authorize",
+    "/oauth/device/callback",
 }
 
 # Path prefixes that are public
