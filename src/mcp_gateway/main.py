@@ -27,7 +27,11 @@ from .server_manager import MCPServerManager
 from . import mcp_transport
 from .auth import get_auth_config, require_auth, get_current_user, OptionalAuth
 from .auth.oauth import router as oauth_router
-from .auth.middleware import AuthenticatedUser
+from .auth.middleware import (
+    AuthenticatedUser,
+    AuthenticationRequired,
+    authentication_exception_handler,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -102,6 +106,10 @@ app = FastAPI(
     # Native OpenAPI at /openapi.json for gateway management API
     # Tool-specific OpenAPI at /tools/openapi.json for Open WebUI
 )
+
+# Register custom exception handler for Claude.ai proxy OAuth pattern
+# This returns 401 with authorization_url at top level (not wrapped in 'detail')
+app.add_exception_handler(AuthenticationRequired, authentication_exception_handler)
 
 # CORS middleware for Open WebUI and other browser-based clients
 app.add_middleware(

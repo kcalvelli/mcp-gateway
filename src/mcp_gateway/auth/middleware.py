@@ -5,12 +5,40 @@ from dataclasses import dataclass
 from typing import Any
 
 from fastapi import Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from .config import get_auth_config
 from .tokens import TokenError, verify_token
 
 logger = logging.getLogger(__name__)
+
+
+class AuthenticationRequired(Exception):
+    """Exception raised when authentication is required.
+
+    This exception returns JSON at the top level (not wrapped in 'detail')
+    to support Claude.ai's proxy OAuth pattern.
+    """
+    def __init__(self, message: str, authorization_url: str, www_authenticate: str):
+        self.message = message
+        self.authorization_url = authorization_url
+        self.www_authenticate = www_authenticate
+        super().__init__(message)
+
+
+async def authentication_exception_handler(request: Request, exc: AuthenticationRequired) -> JSONResponse:
+    """Handle AuthenticationRequired exceptions with top-level JSON."""
+    return JSONResponse(
+        status_code=401,
+        content={
+            "error": "authentication_required",
+            "authorization_url": exc.authorization_url,
+            "message": exc.message,
+        },
+        headers={"WWW-Authenticate": exc.www_authenticate},
+    )
 
 # Bearer token extractor (auto_error=False to allow optional auth)
 oauth2_scheme = HTTPBearer(auto_error=False)
@@ -138,14 +166,10 @@ async def get_current_user(
         # Check if this is a public path
         if _is_public_path(request.url.path):
             return None
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "authentication_required",
-                "message": "Not authenticated",
-                "authorization_url": _build_authorization_url(request),
-            },
-            headers={"WWW-Authenticate": _get_www_authenticate_header(request)},
+        raise AuthenticationRequired(
+            message="Not authenticated",
+            authorization_url=_build_authorization_url(request),
+            www_authenticate=_get_www_authenticate_header(request),
         )
 
     # Validate token
@@ -153,14 +177,10 @@ async def get_current_user(
         payload = verify_token(credentials.credentials)
     except TokenError as e:
         logger.warning(f"Invalid token: {e}")
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "invalid_token",
-                "message": str(e),
-                "authorization_url": _build_authorization_url(request),
-            },
-            headers={"WWW-Authenticate": _get_www_authenticate_header(request)},
+        raise AuthenticationRequired(
+            message=str(e),
+            authorization_url=_build_authorization_url(request),
+            www_authenticate=_get_www_authenticate_header(request),
         )
 
     scopes = payload.get("scope", "").split() if payload.get("scope") else []
@@ -192,14 +212,10 @@ def require_auth(
         )
 
     if user is None:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "authentication_required",
-                "message": "Authentication required",
-                "authorization_url": _build_authorization_url(request),
-            },
-            headers={"WWW-Authenticate": _get_www_authenticate_header(request)},
+        raise AuthenticationRequired(
+            message="Authentication required",
+            authorization_url=_build_authorization_url(request),
+            www_authenticate=_get_www_authenticate_header(request),
         )
 
     return user
