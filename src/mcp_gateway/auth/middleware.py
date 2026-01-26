@@ -68,21 +68,53 @@ class OptionalAuth:
             return None
 
 
-def _get_www_authenticate_header(request: Request) -> str:
-    """Build WWW-Authenticate header with resource_metadata per RFC 9728."""
+def _get_base_url(request: Request) -> str:
+    """Get the base URL from config or request."""
     config = get_auth_config()
 
-    # Determine base URL
     if config.base_url:
-        base_url = config.base_url.rstrip("/")
-    else:
-        # Auto-detect from request
-        scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
-        host = request.headers.get("x-forwarded-host", request.url.netloc)
-        base_url = f"{scheme}://{host}"
+        return config.base_url.rstrip("/")
 
+    # Auto-detect from request
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host", request.url.netloc)
+    return f"{scheme}://{host}"
+
+
+def _get_www_authenticate_header(request: Request) -> str:
+    """Build WWW-Authenticate header with resource_metadata per RFC 9728."""
+    base_url = _get_base_url(request)
     resource_metadata_url = f"{base_url}/.well-known/oauth-protected-resource"
     return f'Bearer resource_metadata="{resource_metadata_url}"'
+
+
+def _build_authorization_url(request: Request) -> str:
+    """
+    Build a direct authorization URL for proxy OAuth pattern.
+
+    This is used to support clients like Claude.ai that don't properly
+    follow MCP OAuth discovery and instead expect a direct authorization_url
+    in the 401 response body.
+    """
+    import secrets
+    from urllib.parse import urlencode
+
+    base_url = _get_base_url(request)
+
+    # Generate a state parameter for CSRF protection
+    state = secrets.token_urlsafe(32)
+
+    # Build authorization URL with parameters that work for Claude.ai
+    # Claude.ai will replace redirect_uri with its own callback URL
+    params = {
+        "response_type": "code",
+        "client_id": "claude-ai-proxy",  # Placeholder, will be replaced by Claude
+        "redirect_uri": f"{base_url}/oauth/callback",  # Default, Claude overrides
+        "state": state,
+        "scope": "tools:read tools:execute",
+    }
+
+    return f"{base_url}/oauth/authorize?{urlencode(params)}"
 
 
 async def get_current_user(
@@ -108,7 +140,11 @@ async def get_current_user(
             return None
         raise HTTPException(
             status_code=401,
-            detail="Not authenticated",
+            detail={
+                "error": "authentication_required",
+                "message": "Not authenticated",
+                "authorization_url": _build_authorization_url(request),
+            },
             headers={"WWW-Authenticate": _get_www_authenticate_header(request)},
         )
 
@@ -119,7 +155,11 @@ async def get_current_user(
         logger.warning(f"Invalid token: {e}")
         raise HTTPException(
             status_code=401,
-            detail=str(e),
+            detail={
+                "error": "invalid_token",
+                "message": str(e),
+                "authorization_url": _build_authorization_url(request),
+            },
             headers={"WWW-Authenticate": _get_www_authenticate_header(request)},
         )
 
@@ -154,7 +194,11 @@ def require_auth(
     if user is None:
         raise HTTPException(
             status_code=401,
-            detail="Authentication required",
+            detail={
+                "error": "authentication_required",
+                "message": "Authentication required",
+                "authorization_url": _build_authorization_url(request),
+            },
             headers={"WWW-Authenticate": _get_www_authenticate_header(request)},
         )
 
