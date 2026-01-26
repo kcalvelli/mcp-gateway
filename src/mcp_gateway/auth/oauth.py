@@ -24,7 +24,7 @@ router = APIRouter(tags=["OAuth"])
 # In production, use Redis or database
 _auth_codes: dict[str, dict[str, Any]] = {}
 _pkce_challenges: dict[str, str] = {}  # state -> code_challenge
-_device_codes: dict[str, dict[str, Any]] = {}  # device_code -> {user_code, client_id, scope, expires_at, authorized_user}
+_device_codes: dict[str, Any] = {}  # device_code -> data dict, OR "user:{code}" -> device_code string
 
 
 def _get_serializer() -> URLSafeTimedSerializer:

@@ -7,8 +7,6 @@ from typing import Any
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from starlette.middleware.base import BaseHTTPMiddleware
-
 from .config import get_auth_config
 from .tokens import TokenError, verify_token
 
