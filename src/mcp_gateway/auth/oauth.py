@@ -176,6 +176,50 @@ async def oauth_login(request: Request):
     return RedirectResponse(url=auth_url)
 
 
+@router.get("/oauth/login/success")
+async def oauth_login_success(
+    request: Request,
+    code: str = Query(..., description="Authorization code"),
+):
+    """
+    Complete the simple login flow by exchanging the code for tokens.
+
+    Returns the access token as JSON for Claude.ai and similar clients.
+    """
+    config = get_auth_config()
+
+    if not config.enabled:
+        raise HTTPException(status_code=404, detail="OAuth not enabled")
+
+    # Validate authorization code
+    code_data = _auth_codes.pop(code, None)
+    if not code_data:
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+
+    # Generate tokens directly (no PKCE for simple login flow)
+    scopes = ["tools:read", "tools:execute"]
+    access_token = create_access_token(
+        subject=code_data["subject"],
+        scopes=scopes,
+        additional_claims={"username": code_data["username"]},
+    )
+    refresh_token = create_refresh_token(subject=code_data["subject"])
+
+    return JSONResponse(
+        content={
+            "access_token": access_token,
+            "token_type": "Bearer",
+            "expires_in": config.access_token_expire_minutes * 60,
+            "refresh_token": refresh_token,
+            "scope": " ".join(scopes),
+            "user": {
+                "username": code_data["username"],
+                "subject": code_data["subject"],
+            },
+        }
+    )
+
+
 @router.get("/auth/status")
 async def auth_status(request: Request):
     """
