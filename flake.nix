@@ -63,6 +63,10 @@
               httpx
               mcp
               sse-starlette
+              # OAuth2 authentication
+              authlib
+              itsdangerous
+              python-jose
             ];
 
             # Copy templates to the package
