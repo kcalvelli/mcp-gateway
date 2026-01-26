@@ -177,6 +177,7 @@ PUBLIC_PATHS = {
     "/docs",
     "/redoc",
     "/.well-known/oauth-authorization-server",
+    "/.well-known/oauth-protected-resource",
     "/oauth/authorize",
     "/oauth/callback",
     "/oauth/token",

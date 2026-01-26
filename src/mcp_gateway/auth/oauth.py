@@ -68,8 +68,31 @@ def _get_base_url(request: Request) -> str:
 
 
 # =============================================================================
-# OAuth2 Discovery (RFC 8414)
+# OAuth2 Discovery (RFC 8414 & RFC 9470)
 # =============================================================================
+
+
+@router.get("/.well-known/oauth-protected-resource")
+async def oauth_protected_resource(request: Request):
+    """
+    OAuth2 Protected Resource Metadata (RFC 9470).
+
+    This endpoint tells MCP clients where to find the authorization server
+    for this protected resource. Required for MCP Streamable HTTP transport.
+    """
+    config = get_auth_config()
+
+    if not config.enabled:
+        raise HTTPException(status_code=404, detail="OAuth not enabled")
+
+    base_url = _get_base_url(request)
+
+    return {
+        "resource": base_url,
+        "authorization_servers": [base_url],
+        "scopes_supported": ["tools:read", "tools:execute"],
+        "bearer_methods_supported": ["header"],
+    }
 
 
 @router.get("/.well-known/oauth-authorization-server")
