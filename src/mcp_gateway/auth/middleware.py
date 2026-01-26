@@ -68,6 +68,23 @@ class OptionalAuth:
             return None
 
 
+def _get_www_authenticate_header(request: Request) -> str:
+    """Build WWW-Authenticate header with resource_metadata per RFC 9728."""
+    config = get_auth_config()
+
+    # Determine base URL
+    if config.base_url:
+        base_url = config.base_url.rstrip("/")
+    else:
+        # Auto-detect from request
+        scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+        host = request.headers.get("x-forwarded-host", request.url.netloc)
+        base_url = f"{scheme}://{host}"
+
+    resource_metadata_url = f"{base_url}/.well-known/oauth-protected-resource"
+    return f'Bearer resource_metadata="{resource_metadata_url}"'
+
+
 async def get_current_user(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(oauth2_scheme),
@@ -92,7 +109,7 @@ async def get_current_user(
         raise HTTPException(
             status_code=401,
             detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
+            headers={"WWW-Authenticate": _get_www_authenticate_header(request)},
         )
 
     # Validate token
@@ -103,7 +120,7 @@ async def get_current_user(
         raise HTTPException(
             status_code=401,
             detail=str(e),
-            headers={"WWW-Authenticate": "Bearer"},
+            headers={"WWW-Authenticate": _get_www_authenticate_header(request)},
         )
 
     scopes = payload.get("scope", "").split() if payload.get("scope") else []
@@ -116,6 +133,7 @@ async def get_current_user(
 
 
 def require_auth(
+    request: Request,
     user: AuthenticatedUser | None = Depends(get_current_user),
 ) -> AuthenticatedUser:
     """
@@ -137,7 +155,7 @@ def require_auth(
         raise HTTPException(
             status_code=401,
             detail="Authentication required",
-            headers={"WWW-Authenticate": "Bearer"},
+            headers={"WWW-Authenticate": _get_www_authenticate_header(request)},
         )
 
     return user
