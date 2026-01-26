@@ -28,8 +28,21 @@ class AuthenticationRequired(Exception):
         super().__init__(message)
 
 
-async def authentication_exception_handler(request: Request, exc: AuthenticationRequired) -> JSONResponse:
-    """Handle AuthenticationRequired exceptions with top-level JSON."""
+async def authentication_exception_handler(request: Request, exc: AuthenticationRequired):
+    """Handle AuthenticationRequired exceptions.
+
+    For browser requests (Accept: text/html), redirect directly to OAuth.
+    For API requests, return JSON with authorization_url.
+    """
+    from fastapi.responses import RedirectResponse
+
+    accept_header = request.headers.get("accept", "")
+
+    # For browser requests, redirect directly to OAuth login
+    if "text/html" in accept_header:
+        return RedirectResponse(url=exc.authorization_url, status_code=302)
+
+    # For API requests, return JSON
     return JSONResponse(
         status_code=401,
         content={
