@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -25,6 +25,9 @@ from .models import (
 )
 from .server_manager import MCPServerManager
 from . import mcp_transport
+from .auth import get_auth_config, require_auth, get_current_user, OptionalAuth
+from .auth.oauth import router as oauth_router
+from .auth.middleware import AuthenticatedUser
 
 # Configure logging
 logging.basicConfig(
@@ -109,6 +112,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# OAuth2 authentication endpoints
+app.include_router(oauth_router)
+
 # MCP Streamable HTTP transport for Claude.ai and other MCP clients
 # Provides /mcp endpoint for native MCP protocol access
 mcp_router = mcp_transport.create_router(lambda: manager)
@@ -128,7 +134,7 @@ else:
 
 
 @app.get("/api/servers", response_model=list[ServerInfo])
-async def list_servers():
+async def list_servers(user: AuthenticatedUser | None = Depends(get_current_user)):
     """List all configured MCP servers."""
     if not manager:
         raise HTTPException(status_code=503, detail="Server manager not initialized")
@@ -136,7 +142,7 @@ async def list_servers():
 
 
 @app.get("/api/servers/{server_id}", response_model=ServerInfo)
-async def get_server(server_id: str):
+async def get_server(server_id: str, user: AuthenticatedUser | None = Depends(get_current_user)):
     """Get information about a specific server."""
     if not manager:
         raise HTTPException(status_code=503, detail="Server manager not initialized")
@@ -148,8 +154,12 @@ async def get_server(server_id: str):
 
 
 @app.patch("/api/servers/{server_id}", response_model=ServerInfo)
-async def toggle_server(server_id: str, request: ServerToggleRequest):
-    """Enable or disable a server."""
+async def toggle_server(
+    server_id: str,
+    request: ServerToggleRequest,
+    user: AuthenticatedUser = Depends(require_auth),
+):
+    """Enable or disable a server. Requires authentication."""
     if not manager:
         raise HTTPException(status_code=503, detail="Server manager not initialized")
 
@@ -170,7 +180,10 @@ async def toggle_server(server_id: str, request: ServerToggleRequest):
 
 
 @app.get("/api/tools", response_model=list[ToolInfo])
-async def list_tools(search: str | None = None):
+async def list_tools(
+    search: str | None = None,
+    user: AuthenticatedUser | None = Depends(get_current_user),
+):
     """List all available tools from enabled servers."""
     if not manager:
         raise HTTPException(status_code=503, detail="Server manager not initialized")
@@ -190,7 +203,11 @@ async def list_tools(search: str | None = None):
 
 
 @app.get("/api/tools/{server_id}/{tool_name}", response_model=ToolSchema)
-async def get_tool_schema(server_id: str, tool_name: str):
+async def get_tool_schema(
+    server_id: str,
+    tool_name: str,
+    user: AuthenticatedUser | None = Depends(get_current_user),
+):
     """Get the JSON schema for a tool."""
     if not manager:
         raise HTTPException(status_code=503, detail="Server manager not initialized")
@@ -204,8 +221,13 @@ async def get_tool_schema(server_id: str, tool_name: str):
 
 
 @app.post("/api/tools/{server_id}/{tool_name}", response_model=ToolCallResponse)
-async def call_tool(server_id: str, tool_name: str, request: ToolCallRequest):
-    """Execute a tool and return the result."""
+async def call_tool(
+    server_id: str,
+    tool_name: str,
+    request: ToolCallRequest,
+    user: AuthenticatedUser = Depends(require_auth),
+):
+    """Execute a tool and return the result. Requires authentication."""
     if not manager:
         raise HTTPException(status_code=503, detail="Server manager not initialized")
 
@@ -407,9 +429,14 @@ async def health_check():
 
 
 @app.post("/tools/{server_id}/{tool_name}")
-async def execute_tool(server_id: str, tool_name: str, request: Request):
+async def execute_tool(
+    server_id: str,
+    tool_name: str,
+    request: Request,
+    user: AuthenticatedUser = Depends(require_auth),
+):
     """
-    Execute an MCP tool directly.
+    Execute an MCP tool directly. Requires authentication.
 
     This endpoint provides OpenAPI-compatible tool access for Open WebUI
     and other clients that expect individual tool endpoints.

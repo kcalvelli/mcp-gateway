@@ -14,9 +14,12 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
+
+from .auth.config import get_auth_config
+from .auth.middleware import AuthenticatedUser, get_current_user, require_auth
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +44,7 @@ class MCPSession:
     session_id: str
     protocol_version: str = MCP_PROTOCOL_VERSION
     initialized: bool = False
+    user_subject: str | None = None  # Authenticated user (e.g., "github:username")
 
 
 # Active sessions (in production, consider Redis or similar)
@@ -63,10 +67,13 @@ def create_router(get_manager):
             return _sessions.get(session_id)
         return None
 
-    def _create_session() -> MCPSession:
+    def _create_session(user: AuthenticatedUser | None = None) -> MCPSession:
         """Create a new MCP session."""
         session_id = secrets.token_urlsafe(32)
-        session = MCPSession(session_id=session_id)
+        session = MCPSession(
+            session_id=session_id,
+            user_subject=user.subject if user else None,
+        )
         _sessions[session_id] = session
         return session
 
@@ -89,14 +96,17 @@ def create_router(get_manager):
             "error": error,
         }
 
-    async def _handle_initialize(request_id: Any, params: dict) -> tuple[dict, MCPSession]:
+    async def _handle_initialize(
+        request_id: Any, params: dict, user: AuthenticatedUser | None = None
+    ) -> tuple[dict, MCPSession]:
         """Handle initialize request."""
-        # Create new session
-        session = _create_session()
+        # Create new session with user info
+        session = _create_session(user)
 
         # Get client info
         client_info = params.get("clientInfo", {})
-        logger.info(f"MCP client connecting: {client_info.get('name', 'unknown')}")
+        user_info = f" (user: {user.subject})" if user and user.subject != "anonymous" else ""
+        logger.info(f"MCP client connecting: {client_info.get('name', 'unknown')}{user_info}")
 
         # Negotiate protocol version
         client_version = params.get("protocolVersion", MCP_PROTOCOL_VERSION)
@@ -180,7 +190,7 @@ def create_router(get_manager):
         return _jsonrpc_response(request_id, {})
 
     async def _handle_message(
-        message: dict, session: MCPSession | None
+        message: dict, session: MCPSession | None, user: AuthenticatedUser | None = None
     ) -> tuple[dict | None, MCPSession | None, int]:
         """
         Handle a JSON-RPC message.
@@ -215,7 +225,7 @@ def create_router(get_manager):
 
         # Handle requests
         if method == "initialize":
-            response, new_session = await _handle_initialize(request_id, params)
+            response, new_session = await _handle_initialize(request_id, params, user)
             return response, new_session, 200
 
         # All other methods require an initialized session
@@ -240,11 +250,15 @@ def create_router(get_manager):
             )
 
     @router.post("")
-    async def mcp_post(request: Request):
+    async def mcp_post(
+        request: Request,
+        user: AuthenticatedUser = Depends(require_auth),
+    ):
         """
         Handle MCP messages via POST.
 
         This is the main endpoint for client-to-server communication.
+        Requires authentication when OAuth is enabled.
         """
         # Validate protocol version header (optional but recommended)
         protocol_version = request.headers.get("MCP-Protocol-Version")
@@ -263,8 +277,8 @@ def create_router(get_manager):
                 status_code=400,
             )
 
-        # Handle the message
-        response, new_session, status = await _handle_message(message, session)
+        # Handle the message (pass user for session creation)
+        response, new_session, status = await _handle_message(message, session, user)
 
         # Build HTTP response
         if response is None:
@@ -282,12 +296,16 @@ def create_router(get_manager):
         return JSONResponse(content=response, status_code=status, headers=headers)
 
     @router.get("")
-    async def mcp_get(request: Request):
+    async def mcp_get(
+        request: Request,
+        user: AuthenticatedUser = Depends(require_auth),
+    ):
         """
         Handle SSE stream for server-initiated messages.
 
         This allows the server to send notifications/requests to the client.
         Currently returns 405 as we don't have server-initiated messages.
+        Requires authentication when OAuth is enabled.
         """
         # For now, we don't support server-initiated messages
         # This could be extended later for things like progress updates
@@ -297,9 +315,13 @@ def create_router(get_manager):
         )
 
     @router.delete("")
-    async def mcp_delete(request: Request):
+    async def mcp_delete(
+        request: Request,
+        user: AuthenticatedUser = Depends(require_auth),
+    ):
         """
         Handle session termination.
+        Requires authentication when OAuth is enabled.
         """
         session = _get_session(request)
         if session:
