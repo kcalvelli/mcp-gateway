@@ -172,6 +172,17 @@ in
       default = true;
       description = "Install OpenSpec slash commands for Claude Code";
     };
+
+    # Service management
+    manageService = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        Whether home-manager should manage the mcp-gateway systemd service.
+        Set to false if using the NixOS module to manage the service
+        (e.g., when OAuth is configured via NixOS with agenix secrets).
+      '';
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -249,8 +260,8 @@ in
       GEMINI_SYSTEM_MD = "${config.home.homeDirectory}/.config/ai/prompts/axios.md";
     };
 
-    # Systemd user service for mcp-gateway
-    systemd.user.services.mcp-gateway = {
+    # Systemd user service for mcp-gateway (only if manageService is true)
+    systemd.user.services.mcp-gateway = lib.mkIf cfg.manageService {
       Unit = {
         Description = "MCP Gateway REST API";
         After = [ "network.target" ];
