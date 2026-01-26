@@ -123,26 +123,11 @@ def _build_authorization_url(request: Request) -> str:
     This is used to support clients like Claude.ai that don't properly
     follow MCP OAuth discovery and instead expect a direct authorization_url
     in the 401 response body.
+
+    Uses the simple /oauth/login endpoint that doesn't require any parameters.
     """
-    import secrets
-    from urllib.parse import urlencode
-
     base_url = _get_base_url(request)
-
-    # Generate a state parameter for CSRF protection
-    state = secrets.token_urlsafe(32)
-
-    # Build authorization URL with parameters that work for Claude.ai
-    # Claude.ai will replace redirect_uri with its own callback URL
-    params = {
-        "response_type": "code",
-        "client_id": "claude-ai-proxy",  # Placeholder, will be replaced by Claude
-        "redirect_uri": f"{base_url}/oauth/callback",  # Default, Claude overrides
-        "state": state,
-        "scope": "tools:read tools:execute",
-    }
-
-    return f"{base_url}/oauth/authorize?{urlencode(params)}"
+    return f"{base_url}/oauth/login"
 
 
 async def get_current_user(
@@ -256,7 +241,10 @@ PUBLIC_PATHS = {
     "/redoc",
     "/.well-known/oauth-authorization-server",
     "/.well-known/oauth-protected-resource",
+    "/auth/status",
     "/oauth/authorize",
+    "/oauth/login",
+    "/oauth/login/success",
     "/oauth/callback",
     "/oauth/token",
     "/oauth/register",

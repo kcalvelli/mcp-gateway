@@ -130,6 +130,72 @@ async def oauth_metadata(request: Request):
 
 
 # =============================================================================
+# Simple Login Endpoint (for Claude.ai proxy pattern)
+# =============================================================================
+
+
+@router.get("/oauth/login")
+async def oauth_login(request: Request):
+    """
+    Simple OAuth login endpoint for Claude.ai.
+
+    Unlike /oauth/authorize, this doesn't require any parameters.
+    It directly redirects to the OAuth provider and handles the callback internally.
+    """
+    config = get_auth_config()
+
+    if not config.enabled:
+        raise HTTPException(status_code=404, detail="OAuth not enabled")
+
+    # Generate state for CSRF protection
+    internal_state = _generate_state()
+    serializer = _get_serializer()
+
+    base_url = _get_base_url(request)
+
+    # Store state data - we'll redirect back to a simple success page
+    state_data = {
+        "client_state": None,
+        "redirect_uri": f"{base_url}/oauth/login/success",
+        "client_id": "claude-ai",
+        "scope": "tools:read tools:execute",
+        "flow": "login",  # Mark as simple login flow
+    }
+
+    encoded_state = serializer.dumps({"internal": internal_state, "data": state_data})
+
+    # Get provider and redirect to authorization
+    provider = _get_provider()
+    callback_uri = f"{base_url}/oauth/callback"
+
+    auth_url = provider.get_authorization_url(
+        redirect_uri=callback_uri,
+        state=encoded_state,
+    )
+
+    return RedirectResponse(url=auth_url)
+
+
+@router.get("/auth/status")
+async def auth_status(request: Request):
+    """
+    Authentication status endpoint for Claude.ai.
+
+    Returns information about how to authenticate with this server.
+    """
+    config = get_auth_config()
+
+    base_url = _get_base_url(request)
+
+    return {
+        "auth_type": "oauth2" if config.enabled else "none",
+        "auth_enabled": config.enabled,
+        "login_url": f"{base_url}/oauth/login" if config.enabled else None,
+        "authorization_url": f"{base_url}/oauth/authorize" if config.enabled else None,
+    }
+
+
+# =============================================================================
 # Authorization Endpoint
 # =============================================================================
 
