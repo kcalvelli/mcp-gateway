@@ -1,0 +1,77 @@
+# MCP Gateway - AI Assistant Context
+
+## Project Overview
+
+mcp-gateway is a universal MCP (Model Context Protocol) gateway that aggregates multiple MCP servers behind a single interface. It provides:
+
+1. **REST API** - HTTP endpoints for tool management and execution
+2. **MCP HTTP Transport** - Native MCP protocol (2025-06-18 spec) for Claude.ai
+3. **Declarative Config** - NixOS/home-manager modules for server configuration
+4. **OAuth2 Auth** (planned) - Secure remote access via GitHub OAuth
+
+## Architecture
+
+```
+┌─────────────────┐     ┌─────────────────────────────────┐     ┌─────────────────┐
+│   Claude.ai     │────▶│         mcp-gateway             │────▶│   MCP Servers   │
+│   Claude Code   │     │  /mcp     (MCP transport)       │     │  - git          │
+│   Open WebUI    │     │  /api/*   (REST API)            │     │  - github       │
+└─────────────────┘     │  /tools/* (OpenAPI endpoints)   │     │  - filesystem   │
+                        └─────────────────────────────────┘     │  - etc.         │
+                                                                └─────────────────┘
+```
+
+## Key Files
+
+- `src/mcp_gateway/main.py` - FastAPI application, routes, CORS
+- `src/mcp_gateway/mcp_transport.py` - MCP HTTP transport implementation
+- `src/mcp_gateway/server_manager.py` - MCP server lifecycle management
+- `src/mcp_gateway/models.py` - Pydantic models
+- `modules/home-manager/default.nix` - Declarative config module
+- `modules/nixos/default.nix` - Systemd service module
+
+## Development Commands
+
+```bash
+# Build package
+nix build
+
+# Enter dev shell
+nix develop
+
+# Run gateway
+mcp-gateway
+
+# Test endpoints
+curl http://localhost:8085/health
+curl http://localhost:8085/api/servers
+curl http://localhost:8085/api/tools
+```
+
+## MCP Protocol Notes
+
+The MCP transport (`/mcp` endpoint) implements the Streamable HTTP spec:
+
+- `POST /mcp` - JSON-RPC messages (initialize, tools/list, tools/call)
+- `Mcp-Session-Id` header for session management
+- Tool names are namespaced: `{server_id}__{tool_name}`
+
+## Module Usage
+
+```nix
+# In home-manager config
+services.mcp-gateway = {
+  enable = true;
+  autoEnable = [ "git" "github" ];
+  servers = {
+    git.enable = true;
+    git.command = "${pkgs.mcp-server-git}/bin/mcp-server-git";
+  };
+};
+```
+
+## Related Projects
+
+- [axios](https://github.com/kcalvelli/axios) - NixOS distribution (imports this)
+- [axios-ai-mail](https://github.com/kcalvelli/axios-ai-mail) - Email MCP server
+- [mcp-dav](https://github.com/kcalvelli/mcp-dav) - Calendar/contacts MCP server
