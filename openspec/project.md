@@ -28,4 +28,4 @@ A universal MCP (Model Context Protocol) gateway that aggregates multiple MCP se
 
 - [axios](https://github.com/kcalvelli/axios) - NixOS framework that imports this
 - [axios-ai-mail](https://github.com/kcalvelli/axios-ai-mail) - Email MCP server
-- [axios-dav](https://github.com/kcalvelli/axios-dav) - Calendar/contacts MCP server
+- [mcp-dav](https://github.com/kcalvelli/mcp-dav) - Calendar/contacts MCP server

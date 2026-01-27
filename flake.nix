@@ -1,5 +1,5 @@
 {
-  description = "Universal MCP Gateway - Aggregates MCP servers with REST, MCP HTTP transport, and OAuth2";
+  description = "Universal MCP Gateway - Aggregates MCP servers with REST and MCP HTTP transport";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -63,10 +63,6 @@
               httpx
               mcp
               sse-starlette
-              # OAuth2 authentication
-              authlib
-              itsdangerous
-              python-jose
             ];
 
             # Copy templates and static files to the package
@@ -87,7 +83,7 @@
             '';
 
             meta = with pkgs.lib; {
-              description = "Universal MCP Gateway with REST, MCP HTTP transport, and OAuth2";
+              description = "Universal MCP Gateway with REST and MCP HTTP transport";
               homepage = "https://github.com/kcalvelli/mcp-gateway";
               license = licenses.mit;
               maintainers = [ ];
