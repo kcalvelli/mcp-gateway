@@ -210,15 +210,34 @@ async def get_tool_schema(server_id: str, tool_name: str):
 
 
 @app.post("/api/tools/{server_id}/{tool_name}", response_model=ToolCallResponse)
-async def call_tool(server_id: str, tool_name: str, request: ToolCallRequest):
-    """Execute a tool and return the result."""
+async def call_tool(server_id: str, tool_name: str, request: Request):
+    """Execute a tool and return the result.
+
+    Accepts either:
+    - {"arguments": {...}} - wrapped format
+    - {...} - direct arguments format
+    """
     if not manager:
         raise HTTPException(status_code=503, detail="Server manager not initialized")
+
+    # Parse body, accepting both wrapped and direct formats
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    # Support both {"arguments": {...}} and direct {...} formats
+    if "arguments" in body and isinstance(body.get("arguments"), dict):
+        arguments = body["arguments"]
+    else:
+        arguments = body
+
+    logger.debug(f"call_tool: server={server_id}, tool={tool_name}, args={arguments}")
 
     start_time = time.time()
 
     try:
-        result = await manager.call_tool(server_id, tool_name, request.arguments)
+        result = await manager.call_tool(server_id, tool_name, arguments)
         duration_ms = (time.time() - start_time) * 1000
 
         return ToolCallResponse(
