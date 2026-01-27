@@ -65,57 +65,6 @@ in {
       description = "Open firewall port for the web UI.";
     };
 
-    # OAuth2 configuration
-    oauth = {
-      enable = mkEnableOption "OAuth2 authentication for secure remote access";
-
-      baseUrl = mkOption {
-        type = types.str;
-        example = "https://mcp.example.com";
-        description = "Public base URL for OAuth callbacks.";
-      };
-
-      provider = mkOption {
-        type = types.enum [ "github" ];
-        default = "github";
-        description = "OAuth identity provider.";
-      };
-
-      clientId = mkOption {
-        type = types.str;
-        description = "OAuth client ID (e.g., GitHub OAuth App client ID).";
-      };
-
-      clientSecretFile = mkOption {
-        type = types.path;
-        description = "Path to file containing OAuth client secret.";
-      };
-
-      jwtSecretFile = mkOption {
-        type = types.nullOr types.path;
-        default = null;
-        description = "Path to file containing JWT signing secret. Auto-generated if null.";
-      };
-
-      allowedUsers = mkOption {
-        type = types.listOf types.str;
-        default = [ ];
-        description = "List of allowed usernames. Empty means all authenticated users allowed.";
-      };
-
-      accessTokenExpireMinutes = mkOption {
-        type = types.int;
-        default = 60;
-        description = "Access token expiration time in minutes.";
-      };
-
-      refreshTokenExpireDays = mkOption {
-        type = types.int;
-        default = 30;
-        description = "Refresh token expiration time in days.";
-      };
-    };
-
     # Tailscale Services integration (requires axios networking.tailscale module)
     tailscaleServe = {
       enable = mkEnableOption ''
@@ -177,10 +126,6 @@ in {
         '';
       }
       {
-        assertion = cfg.oauth.enable -> cfg.oauth.clientSecretFile != null;
-        message = "mcp-gateway: oauth.enable requires oauth.clientSecretFile to be set";
-      }
-      {
         assertion = cfg.pwa.enable -> cfg.pwa.tailnetDomain != null;
         message = ''
           mcp-gateway: pwa.enable requires pwa.tailnetDomain to be set.
@@ -213,17 +158,6 @@ in {
         PYTHONUNBUFFERED = "1";
       } // optionalAttrs (cfg.configFile != null) {
         MCP_GATEWAY_CONFIG = cfg.configFile;
-      } // optionalAttrs cfg.oauth.enable {
-        MCP_GATEWAY_OAUTH_ENABLED = "true";
-        MCP_GATEWAY_OAUTH_PROVIDER = cfg.oauth.provider;
-        MCP_GATEWAY_BASE_URL = cfg.oauth.baseUrl;
-        MCP_GATEWAY_GITHUB_CLIENT_ID = cfg.oauth.clientId;
-        MCP_GATEWAY_GITHUB_CLIENT_SECRET_FILE = toString cfg.oauth.clientSecretFile;
-        MCP_GATEWAY_ALLOWED_USERS = concatStringsSep "," cfg.oauth.allowedUsers;
-        MCP_GATEWAY_ACCESS_TOKEN_EXPIRE_MINUTES = toString cfg.oauth.accessTokenExpireMinutes;
-        MCP_GATEWAY_REFRESH_TOKEN_EXPIRE_DAYS = toString cfg.oauth.refreshTokenExpireDays;
-      } // optionalAttrs (cfg.oauth.enable && cfg.oauth.jwtSecretFile != null) {
-        MCP_GATEWAY_JWT_SECRET_FILE = toString cfg.oauth.jwtSecretFile;
       };
 
       serviceConfig = {

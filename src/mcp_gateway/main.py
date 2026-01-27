@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -25,14 +25,6 @@ from .models import (
 )
 from .server_manager import MCPServerManager
 from . import mcp_transport
-from .auth import get_auth_config, require_auth, get_current_user, OptionalAuth
-from .auth.oauth import router as oauth_router
-from .auth.middleware import (
-    AuthenticatedUser,
-    AuthenticationRequired,
-    authentication_exception_handler,
-)
-from .auth.tokens import verify_token, TokenError
 
 # Configure logging
 logging.basicConfig(
@@ -108,21 +100,14 @@ app = FastAPI(
     # Tool-specific OpenAPI at /tools/openapi.json for Open WebUI
 )
 
-# Register custom exception handler for Claude.ai proxy OAuth pattern
-# This returns 401 with authorization_url at top level (not wrapped in 'detail')
-app.add_exception_handler(AuthenticationRequired, authentication_exception_handler)
-
 # CORS middleware for Open WebUI and other browser-based clients
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for local development
+    allow_origins=["*"],  # Allow all origins - Tailscale provides network security
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# OAuth2 authentication endpoints
-app.include_router(oauth_router)
 
 # MCP Streamable HTTP transport for Claude.ai and other MCP clients
 # Provides /mcp endpoint for native MCP protocol access
@@ -148,7 +133,7 @@ if static_dir.exists():
 
 
 @app.get("/api/servers", response_model=list[ServerInfo])
-async def list_servers(user: AuthenticatedUser | None = Depends(get_current_user)):
+async def list_servers():
     """List all configured MCP servers."""
     if not manager:
         raise HTTPException(status_code=503, detail="Server manager not initialized")
@@ -156,7 +141,7 @@ async def list_servers(user: AuthenticatedUser | None = Depends(get_current_user
 
 
 @app.get("/api/servers/{server_id}", response_model=ServerInfo)
-async def get_server(server_id: str, user: AuthenticatedUser | None = Depends(get_current_user)):
+async def get_server(server_id: str):
     """Get information about a specific server."""
     if not manager:
         raise HTTPException(status_code=503, detail="Server manager not initialized")
@@ -168,12 +153,8 @@ async def get_server(server_id: str, user: AuthenticatedUser | None = Depends(ge
 
 
 @app.patch("/api/servers/{server_id}", response_model=ServerInfo)
-async def toggle_server(
-    server_id: str,
-    request: ServerToggleRequest,
-    user: AuthenticatedUser = Depends(require_auth),
-):
-    """Enable or disable a server. Requires authentication."""
+async def toggle_server(server_id: str, request: ServerToggleRequest):
+    """Enable or disable a server."""
     if not manager:
         raise HTTPException(status_code=503, detail="Server manager not initialized")
 
@@ -194,10 +175,7 @@ async def toggle_server(
 
 
 @app.get("/api/tools", response_model=list[ToolInfo])
-async def list_tools(
-    search: str | None = None,
-    user: AuthenticatedUser | None = Depends(get_current_user),
-):
+async def list_tools(search: str | None = None):
     """List all available tools from enabled servers."""
     if not manager:
         raise HTTPException(status_code=503, detail="Server manager not initialized")
@@ -217,11 +195,7 @@ async def list_tools(
 
 
 @app.get("/api/tools/{server_id}/{tool_name}", response_model=ToolSchema)
-async def get_tool_schema(
-    server_id: str,
-    tool_name: str,
-    user: AuthenticatedUser | None = Depends(get_current_user),
-):
+async def get_tool_schema(server_id: str, tool_name: str):
     """Get the JSON schema for a tool."""
     if not manager:
         raise HTTPException(status_code=503, detail="Server manager not initialized")
@@ -235,13 +209,8 @@ async def get_tool_schema(
 
 
 @app.post("/api/tools/{server_id}/{tool_name}", response_model=ToolCallResponse)
-async def call_tool(
-    server_id: str,
-    tool_name: str,
-    request: ToolCallRequest,
-    user: AuthenticatedUser = Depends(require_auth),
-):
-    """Execute a tool and return the result. Requires authentication."""
+async def call_tool(server_id: str, tool_name: str, request: ToolCallRequest):
+    """Execute a tool and return the result."""
     if not manager:
         raise HTTPException(status_code=503, detail="Server manager not initialized")
 
@@ -358,36 +327,6 @@ def _json_type_to_python(json_type: str) -> str:
 # =============================================================================
 
 
-def _get_web_user(request: Request) -> AuthenticatedUser | None:
-    """Get user from session cookie for web UI pages."""
-    session_token = request.cookies.get("mcp_session")
-    if not session_token:
-        return None
-
-    try:
-        payload = verify_token(session_token)
-        scopes = payload.get("scope", "").split() if payload.get("scope") else []
-        return AuthenticatedUser(
-            subject=payload["sub"],
-            scopes=scopes,
-            claims=payload,
-        )
-    except TokenError:
-        return None
-
-
-def _get_template_context(request: Request) -> dict[str, Any]:
-    """Build common template context with auth info."""
-    config = get_auth_config()
-    user = _get_web_user(request) if config.enabled else None
-
-    return {
-        "request": request,
-        "auth_enabled": config.enabled,
-        "current_user": user,
-    }
-
-
 @app.get("/", response_class=HTMLResponse)
 async def ui_home(request: Request):
     """Render the orchestrator UI."""
@@ -399,13 +338,14 @@ async def ui_home(request: Request):
     servers = manager.get_all_servers() if manager else []
     tools_count = len(manager.get_all_tools()) if manager else 0
 
-    context = _get_template_context(request)
-    context.update({
-        "servers": servers,
-        "tools_count": tools_count,
-    })
-
-    return templates.TemplateResponse("index.html", context)
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "servers": servers,
+            "tools_count": tools_count,
+        },
+    )
 
 
 @app.get("/servers", response_class=HTMLResponse)
@@ -416,10 +356,13 @@ async def ui_servers(request: Request):
 
     servers = manager.get_all_servers() if manager else []
 
-    context = _get_template_context(request)
-    context["servers"] = servers
-
-    return templates.TemplateResponse("servers.html", context)
+    return templates.TemplateResponse(
+        "servers.html",
+        {
+            "request": request,
+            "servers": servers,
+        },
+    )
 
 
 @app.get("/tools", response_class=HTMLResponse)
@@ -440,10 +383,13 @@ async def ui_tools(request: Request):
                 }
             )
 
-    context = _get_template_context(request)
-    context["tools"] = tools
-
-    return templates.TemplateResponse("tools.html", context)
+    return templates.TemplateResponse(
+        "tools.html",
+        {
+            "request": request,
+            "tools": tools,
+        },
+    )
 
 
 # =============================================================================
@@ -467,14 +413,9 @@ async def health_check():
 
 
 @app.post("/tools/{server_id}/{tool_name}")
-async def execute_tool(
-    server_id: str,
-    tool_name: str,
-    request: Request,
-    user: AuthenticatedUser = Depends(require_auth),
-):
+async def execute_tool(server_id: str, tool_name: str, request: Request):
     """
-    Execute an MCP tool directly. Requires authentication.
+    Execute an MCP tool directly.
 
     This endpoint provides OpenAPI-compatible tool access for Open WebUI
     and other clients that expect individual tool endpoints.

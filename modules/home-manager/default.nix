@@ -154,7 +154,7 @@ in
       description = ''
         Whether home-manager should manage the mcp-gateway systemd service.
         Set to false if using the NixOS module to manage the service
-        (e.g., when OAuth is configured via NixOS with agenix secrets).
+        (e.g., when using Tailscale Services for network-level access control).
       '';
     };
   };

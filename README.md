@@ -5,11 +5,19 @@ Universal MCP Gateway - Aggregates multiple MCP (Model Context Protocol) servers
 ## Features
 
 - **REST API** - Tool management and execution via HTTP
-- **MCP HTTP Transport** - Native MCP protocol support for Claude.ai/Desktop
+- **MCP HTTP Transport** - Native MCP protocol support (2025-06-18 spec)
 - **Dynamic OpenAPI** - Per-tool endpoints for Open WebUI integration
 - **Web UI** - Visual orchestrator for managing servers and tools
 - **Declarative Config** - NixOS/home-manager modules for server configuration
-- **OAuth2 Authentication** - Secure remote access with GitHub OAuth
+- **Tailscale Integration** - Network-level security via Tailscale Services
+
+## Security Model
+
+No application-level authentication. Network security is provided by Tailscale:
+
+- Only devices on your tailnet can access the gateway
+- Tailscale provides device identity and end-to-end encryption
+- Tailscale Services give the gateway a unique DNS name on your tailnet
 
 ## Installation
 
@@ -68,33 +76,20 @@ services.mcp-gateway.servers.myserver = {
 services.mcp-gateway.autoEnable = [ "git" "github" "filesystem" ];
 ```
 
-### OAuth2 Authentication
+### Tailscale Services (NixOS)
 
-Enable OAuth2 for secure remote access:
+Expose the gateway across your tailnet with a unique DNS name:
 
 ```nix
-services.mcp-gateway.oauth = {
+services.mcp-gateway = {
   enable = true;
-  baseUrl = "https://your-domain.com";  # Public URL
-  provider = "github";
-  clientId = "your-github-oauth-app-client-id";
-  clientSecretFile = config.age.secrets.github-oauth-secret.path;  # agenix secret
-  allowedUsers = [ "your-github-username" ];  # Optional: restrict access
+  user = "youruser";
+  tailscaleServe = {
+    enable = true;
+    serviceName = "mcp-gateway";  # -> mcp-gateway.<tailnet>.ts.net
+  };
 };
 ```
-
-**Setup Steps:**
-
-1. Create a GitHub OAuth App at https://github.com/settings/developers
-2. Set callback URL to `https://your-domain/oauth/callback`
-3. Store client secret securely (e.g., with agenix)
-4. Configure as shown above
-
-**Authentication Flow:**
-
-- Visit the Web UI and click "Login" to authenticate via GitHub
-- Use `/oauth/login` to get an access token for API access
-- Protected endpoints require `Authorization: Bearer <token>` header
 
 ## API Endpoints
 
@@ -102,24 +97,31 @@ services.mcp-gateway.oauth = {
 |----------|-------------|
 | `GET /api/servers` | List all configured servers |
 | `GET /api/tools` | List all available tools |
-| `POST /api/tools/{server}/{tool}` | Execute a tool (requires auth) |
+| `POST /api/tools/{server}/{tool}` | Execute a tool |
+| `POST /tools/{server}/{tool}` | Execute a tool (OpenAPI-compatible) |
 | `POST /mcp` | MCP HTTP transport endpoint |
-| `GET /tools/openapi.json` | Dynamic OpenAPI schema |
+| `GET /tools/openapi.json` | Dynamic OpenAPI schema for all tools |
 | `GET /health` | Health check |
 | `/` | Web UI |
 
-### OAuth Endpoints
+## MCP Transport
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /.well-known/oauth-authorization-server` | OAuth server metadata (RFC 8414) |
-| `GET /.well-known/oauth-protected-resource` | Protected resource metadata (RFC 9728) |
-| `GET /oauth/authorize` | Authorization endpoint |
-| `GET /oauth/login` | Simple login (no params needed) |
-| `POST /oauth/token` | Token endpoint |
-| `GET /auth/status` | Check auth configuration |
-| `GET /auth/web/login` | Web UI login |
-| `GET /auth/web/logout` | Web UI logout |
+The `/mcp` endpoint implements MCP Streamable HTTP (2025-06-18 spec):
+
+```bash
+# Initialize session
+curl -X POST http://localhost:8085/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"clientInfo":{"name":"test"}}}'
+
+# List tools
+curl -X POST http://localhost:8085/mcp \
+  -H "Content-Type: application/json" \
+  -H "Mcp-Session-Id: <session-id-from-response>" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":2}'
+```
+
+Tool names are namespaced as `{server_id}__{tool_name}` to avoid conflicts.
 
 ## Development
 
