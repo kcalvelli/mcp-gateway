@@ -435,10 +435,13 @@ async def execute_tool(server_id: str, tool_name: str, request: Request):
     else:
         arguments = body
 
+    logger.debug(f"execute_tool: server={server_id}, tool={tool_name}, args={arguments}")
+
     start_time = time.time()
 
     try:
         result = await manager.call_tool(server_id, tool_name, arguments)
+        logger.debug(f"execute_tool result: {result}")
         duration_ms = (time.time() - start_time) * 1000
 
         # Return result directly for OpenAPI compatibility

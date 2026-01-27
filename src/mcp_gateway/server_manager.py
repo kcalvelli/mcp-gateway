@@ -138,8 +138,11 @@ class MCPServerConnection:
         if self.status != ServerStatus.CONNECTED or self._session is None:
             raise RuntimeError(f"Server {self.server_id} is not connected")
 
+        logger.debug(f"MCPServerConnection.call_tool: {tool_name} with args: {arguments}")
+
         try:
             result: CallToolResult = await self._session.call_tool(tool_name, arguments)
+            logger.debug(f"MCPServerConnection.call_tool result: {result}")
 
             # Extract content from result
             content_list = []
