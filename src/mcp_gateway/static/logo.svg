@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- MCP Gateway Logo - axios branding -->
+
+  <!-- Radiating chevrons -->
+  <g transform="translate(256, 256)">
+    <!-- Gold chevrons (positions 1, 3, 5) -->
+    <g fill="#D4A84B">
+      <!-- Top chevron -->
+      <path d="M-30,-190 L0,-130 L30,-190 L30,-145 L0,-85 L-30,-145 Z" transform="rotate(0)"/>
+      <!-- Bottom-right chevron -->
+      <path d="M-30,-190 L0,-130 L30,-190 L30,-145 L0,-85 L-30,-145 Z" transform="rotate(120)"/>
+      <!-- Bottom-left chevron -->
+      <path d="M-30,-190 L0,-130 L30,-190 L30,-145 L0,-85 L-30,-145 Z" transform="rotate(240)"/>
+    </g>
+
+    <!-- Crimson chevrons (positions 2, 4, 6) -->
+    <g fill="#A63D40">
+      <!-- Top-right chevron -->
+      <path d="M-30,-190 L0,-130 L30,-190 L30,-145 L0,-85 L-30,-145 Z" transform="rotate(60)"/>
+      <!-- Bottom chevron -->
+      <path d="M-30,-190 L0,-130 L30,-190 L30,-145 L0,-85 L-30,-145 Z" transform="rotate(180)"/>
+      <!-- Top-left chevron -->
+      <path d="M-30,-190 L0,-130 L30,-190 L30,-145 L0,-85 L-30,-145 Z" transform="rotate(300)"/>
+    </g>
+  </g>
+
+  <!-- Center gateway/hub icon -->
+  <g transform="translate(256, 256)">
+    <!-- Central hub circle -->
+    <circle cx="0" cy="0" r="28" fill="#D4A84B"/>
+
+    <!-- Connection lines to outer nodes -->
+    <g stroke="#A63D40" stroke-width="6" stroke-linecap="round">
+      <line x1="0" y1="-28" x2="0" y2="-55"/>
+      <line x1="24" y1="14" x2="48" y2="28"/>
+      <line x1="-24" y1="14" x2="-48" y2="28"/>
+    </g>
+
+    <!-- Outer server nodes -->
+    <g fill="#A63D40">
+      <circle cx="0" cy="-65" r="16"/>
+      <circle cx="56" cy="32" r="16"/>
+      <circle cx="-56" cy="32" r="16"/>
+    </g>
+
+    <!-- Inner details on hub -->
+    <circle cx="0" cy="0" r="12" fill="#A63D40"/>
+  </g>
+</svg>

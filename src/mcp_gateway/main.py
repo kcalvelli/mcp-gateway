@@ -136,6 +136,11 @@ if templates_dir.exists():
 else:
     templates = None
 
+# Static files directory
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
 
 # =============================================================================
 # API Endpoints
