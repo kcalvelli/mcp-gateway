@@ -1,11 +1,15 @@
 # NixOS module for mcp-gateway
-# Provides the systemd service and optional Tailscale Serve integration
+# Provides the systemd service and optional Tailscale Services integration
+#
+# When used with axios, set tailscaleServe.enable = true to register as a
+# Tailscale Service with unique DNS: axios-mcp-gateway.<tailnet>.ts.net
 { config, lib, pkgs, ... }:
 
 with lib;
 
 let
   cfg = config.services.mcp-gateway;
+  tsCfg = config.networking.tailscale or {};
 in {
   options.services.mcp-gateway = {
     enable = mkEnableOption "MCP Gateway REST API service";
@@ -112,18 +116,34 @@ in {
       };
     };
 
-    # Tailscale Serve integration
+    # Tailscale Services integration (requires axios networking.tailscale module)
     tailscaleServe = {
-      enable = mkEnableOption "Tailscale Serve to expose mcp-gateway across your tailnet";
+      enable = mkEnableOption ''
+        Tailscale Services to expose mcp-gateway across your tailnet.
+        Creates a unique DNS name: <serviceName>.<tailnet>.ts.net
+
+        Requires:
+        - networking.tailscale.authMode = "authkey" (tag-based identity)
+        - networking.tailscale.services option (from axios)
+      '';
+
+      serviceName = mkOption {
+        type = types.str;
+        default = "axios-mcp-gateway";
+        description = ''
+          Tailscale Service name. The service will be available at:
+          https://<serviceName>.<tailnet>.ts.net
+        '';
+        example = "mcp-gateway";
+      };
 
       httpsPort = mkOption {
         type = types.port;
         default = 443;
         description = ''
-          HTTPS port to expose on your tailnet.
-          The service will be available at https://{hostname}.{tailnet}:{httpsPort}
+          HTTPS port for the Tailscale Service.
+          Default 443 gives clean URLs without port suffix.
         '';
-        example = 8443;
       };
     };
   };
@@ -134,6 +154,15 @@ in {
       {
         assertion = cfg.tailscaleServe.enable -> config.services.tailscale.enable;
         message = "mcp-gateway: tailscaleServe requires services.tailscale.enable = true";
+      }
+      {
+        assertion = cfg.tailscaleServe.enable -> (tsCfg.authMode or "interactive") == "authkey";
+        message = ''
+          mcp-gateway: tailscaleServe requires networking.tailscale.authMode = "authkey".
+
+          Tailscale Services require tag-based device identity.
+          Set up an auth key in the Tailscale admin console with appropriate tags.
+        '';
       }
       {
         assertion = cfg.oauth.enable -> cfg.oauth.clientSecretFile != null;
@@ -196,33 +225,19 @@ in {
       };
     };
 
-    # Tailscale Serve service
-    systemd.services.mcp-gateway-tailscale-serve = mkIf cfg.tailscaleServe.enable {
-      description = "MCP Gateway Tailscale Serve (HTTPS proxy)";
-      after = [ "network-online.target" "tailscaled.service" "mcp-gateway.service" ];
-      wants = [ "network-online.target" "tailscaled.service" ];
-      requires = [ "mcp-gateway.service" ];
-      wantedBy = [ "multi-user.target" ];
+    # Tailscale Services registration
+    # Provides unique DNS name: <serviceName>.<tailnet>.ts.net
+    # Uses axios's networking.tailscale.services infrastructure
+    networking.tailscale.services.${cfg.tailscaleServe.serviceName} = mkIf cfg.tailscaleServe.enable {
+      enable = true;
+      backend = "http://127.0.0.1:${toString cfg.port}";
+      port = cfg.tailscaleServe.httpsPort;
+    };
 
-      script = ''
-        # Wait up to 60 seconds for Tailscale to be connected
-        for i in $(seq 1 60); do
-          if ${pkgs.tailscale}/bin/tailscale status --json 2>/dev/null | ${pkgs.jq}/bin/jq -e '.BackendState == "Running"' >/dev/null 2>&1; then
-            echo "Tailscale is connected, starting serve..."
-            exec ${pkgs.tailscale}/bin/tailscale serve --bg --https=${toString cfg.tailscaleServe.httpsPort} ${toString cfg.port}
-          fi
-          echo "Waiting for Tailscale to connect... ($i/60)"
-          sleep 1
-        done
-        echo "Tailscale did not connect within 60 seconds"
-        exit 1
-      '';
-
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
-        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --https=${toString cfg.tailscaleServe.httpsPort} off";
-      };
+    # Local hostname for server PWA (hairpinning workaround)
+    # Server can't access its own Tailscale Services VIPs, so we use a local domain
+    networking.hosts = mkIf cfg.tailscaleServe.enable {
+      "127.0.0.1" = [ "${cfg.tailscaleServe.serviceName}.local" ];
     };
 
     # Firewall
