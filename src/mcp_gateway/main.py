@@ -530,6 +530,16 @@ def _generate_tool_openapi_schema() -> dict:
             }
         }
 
+    # Build server URL from environment or use default
+    host = os.environ.get("MCP_GATEWAY_HOST", "127.0.0.1")
+    port = os.environ.get("MCP_GATEWAY_PORT", "8085")
+
+    # Use localhost for 127.0.0.1 to be more portable
+    if host == "127.0.0.1":
+        server_url = f"http://localhost:{port}"
+    else:
+        server_url = f"http://{host}:{port}"
+
     return {
         "openapi": "3.1.0",
         "info": {
@@ -537,6 +547,9 @@ def _generate_tool_openapi_schema() -> dict:
             "description": "Dynamic API exposing MCP server tools. Each tool is available as a separate endpoint.",
             "version": "0.1.0",
         },
+        "servers": [
+            {"url": server_url, "description": "MCP Gateway"},
+        ],
         "paths": paths,
     }
 
