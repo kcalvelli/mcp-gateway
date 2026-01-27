@@ -146,6 +146,18 @@ in {
         '';
       };
     };
+
+    # PWA desktop entry options (for axios home-manager integration)
+    pwa = {
+      enable = mkEnableOption "Generate MCP Gateway PWA desktop entry";
+
+      tailnetDomain = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        example = "taile0fb4.ts.net";
+        description = "Tailscale tailnet domain for PWA URL generation.";
+      };
+    };
   };
 
   config = mkIf cfg.enable {
@@ -167,6 +179,15 @@ in {
       {
         assertion = cfg.oauth.enable -> cfg.oauth.clientSecretFile != null;
         message = "mcp-gateway: oauth.enable requires oauth.clientSecretFile to be set";
+      }
+      {
+        assertion = cfg.pwa.enable -> cfg.pwa.tailnetDomain != null;
+        message = ''
+          mcp-gateway: pwa.enable requires pwa.tailnetDomain to be set.
+
+          Example:
+            services.mcp-gateway.pwa.tailnetDomain = "taile0fb4.ts.net";
+        '';
       }
     ];
 
