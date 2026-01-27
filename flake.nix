@@ -69,14 +69,20 @@
               python-jose
             ];
 
-            # Copy templates to the package
+            # Copy templates and static files to the package
             postInstall = ''
-              templates_src="$out/lib/python*/site-packages/mcp_gateway/templates"
-              if [ -d $templates_src ]; then
-                echo "Templates already installed"
-              else
-                mkdir -p $out/lib/python*/site-packages/mcp_gateway/templates
-                cp -r src/mcp_gateway/templates/* $out/lib/python*/site-packages/mcp_gateway/templates/
+              site_packages="$out/lib/python*/site-packages/mcp_gateway"
+
+              # Templates
+              if [ ! -d $site_packages/templates ]; then
+                mkdir -p $site_packages/templates
+                cp -r src/mcp_gateway/templates/* $site_packages/templates/
+              fi
+
+              # Static files (logo, favicon, manifest)
+              if [ ! -d $site_packages/static ]; then
+                mkdir -p $site_packages/static
+                cp -r src/mcp_gateway/static/* $site_packages/static/
               fi
             '';
 
