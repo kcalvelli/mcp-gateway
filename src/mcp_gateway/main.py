@@ -427,7 +427,9 @@ async def execute_tool(server_id: str, tool_name: str, request: Request):
     # Parse request body - accept both direct args and wrapped format
     try:
         body = await request.json()
-    except Exception:
+        logger.debug(f"execute_tool: parsed body={body}")
+    except Exception as e:
+        logger.debug(f"execute_tool: failed to parse body: {e}")
         body = {}
 
     # Support both {"arguments": {...}} and direct {...} formats
