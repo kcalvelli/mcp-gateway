@@ -241,9 +241,16 @@ in {
         ReadWritePaths = [
           "/home/${cfg.user}/.local/share/mcp-gateway"
           "/home/${cfg.user}/.config/mcp"
+          "/home/${cfg.user}/.npm"  # For npx-based MCP servers
         ];
         PrivateTmp = true;
       };
+
+      # Ensure data directories exist before service starts
+      preStart = ''
+        mkdir -p /home/${cfg.user}/.local/share/mcp-gateway
+        mkdir -p /home/${cfg.user}/.npm
+      '';
     };
 
     # Tailscale Services registration
