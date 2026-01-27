@@ -183,6 +183,8 @@ in {
           "/home/${cfg.user}/.local/share/mcp-gateway"
           "/home/${cfg.user}/.config/mcp"
           "/home/${cfg.user}/.npm"  # For npx-based MCP servers
+          "/home/${cfg.user}/.calendars"  # For mcp-dav calendar writes
+          "/home/${cfg.user}/.contacts"   # For mcp-dav contact writes
         ];
         PrivateTmp = true;
       };
