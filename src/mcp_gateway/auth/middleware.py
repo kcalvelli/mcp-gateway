@@ -263,6 +263,10 @@ PUBLIC_PATHS = {
     "/oauth/device/verify",
     "/oauth/device/authorize",
     "/oauth/device/callback",
+    # Web UI auth (cookie-based)
+    "/auth/web/login",
+    "/auth/web/callback",
+    "/auth/web/logout",
 }
 
 # Path prefixes that are public

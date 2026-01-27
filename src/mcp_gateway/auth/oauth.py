@@ -240,6 +240,108 @@ async def auth_status(request: Request):
 
 
 # =============================================================================
+# Web UI Session Auth
+# =============================================================================
+
+
+@router.get("/auth/web/login")
+async def web_login(request: Request):
+    """
+    Start web UI login flow.
+
+    Redirects to OAuth provider, then back to web UI with session cookie.
+    """
+    config = get_auth_config()
+
+    if not config.enabled:
+        raise HTTPException(status_code=404, detail="OAuth not enabled")
+
+    # Generate state for CSRF protection
+    internal_state = _generate_state()
+    serializer = _get_serializer()
+
+    base_url = _get_base_url(request)
+
+    # Store state data - redirect back to web UI after auth
+    state_data = {
+        "client_state": None,
+        "redirect_uri": f"{base_url}/auth/web/callback",
+        "client_id": "web-ui",
+        "scope": "tools:read tools:execute",
+        "flow": "web",
+    }
+
+    encoded_state = serializer.dumps({"internal": internal_state, "data": state_data})
+
+    # Get provider and redirect to authorization
+    provider = _get_provider()
+    callback_uri = f"{base_url}/oauth/callback"
+
+    auth_url = provider.get_authorization_url(
+        redirect_uri=callback_uri,
+        state=encoded_state,
+    )
+
+    return RedirectResponse(url=auth_url)
+
+
+@router.get("/auth/web/callback")
+async def web_callback(
+    request: Request,
+    code: str = Query(..., description="Authorization code"),
+):
+    """
+    Handle web UI OAuth callback.
+
+    Sets session cookie and redirects to home page.
+    """
+    config = get_auth_config()
+
+    if not config.enabled:
+        raise HTTPException(status_code=404, detail="OAuth not enabled")
+
+    # Validate authorization code
+    code_data = _auth_codes.pop(code, None)
+    if not code_data:
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+
+    # Generate access token
+    scopes = ["tools:read", "tools:execute"]
+    access_token = create_access_token(
+        subject=code_data["subject"],
+        scopes=scopes,
+        additional_claims={"username": code_data["username"]},
+    )
+
+    base_url = _get_base_url(request)
+
+    # Redirect to home page with session cookie
+    response = RedirectResponse(url=f"{base_url}/", status_code=302)
+    response.set_cookie(
+        key="mcp_session",
+        value=access_token,
+        httponly=True,
+        secure=True,  # HTTPS only
+        samesite="lax",
+        max_age=config.access_token_expire_minutes * 60,
+    )
+    return response
+
+
+@router.get("/auth/web/logout")
+async def web_logout(request: Request):
+    """
+    Log out of web UI.
+
+    Clears session cookie and redirects to home page.
+    """
+    base_url = _get_base_url(request)
+    response = RedirectResponse(url=f"{base_url}/", status_code=302)
+    response.delete_cookie(key="mcp_session")
+    return response
+
+
+# =============================================================================
 # Authorization Endpoint
 # =============================================================================
 

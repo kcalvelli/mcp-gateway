@@ -71,6 +71,43 @@
             color: var(--text-primary);
         }
 
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 0.9rem;
+        }
+
+        .user-info .username {
+            color: var(--text-secondary);
+        }
+
+        .user-info .login-btn,
+        .user-info .logout-btn {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+        }
+
+        .user-info .login-btn:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        .user-info .logout-btn:hover {
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
+
         main {
             padding: 24px 0;
         }
@@ -283,12 +320,26 @@
 <body>
     <header>
         <div class="container">
-            <h1><span>MCP</span> Gateway</h1>
-            <nav>
-                <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a>
-                <a href="/servers" class="{% if request.url.path == '/servers' %}active{% endif %}">Servers</a>
-                <a href="/tools" class="{% if request.url.path == '/tools' %}active{% endif %}">Tools</a>
-            </nav>
+            <div class="header-content">
+                <div>
+                    <h1><span>MCP</span> Gateway</h1>
+                    <nav>
+                        <a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a>
+                        <a href="/servers" class="{% if request.url.path == '/servers' %}active{% endif %}">Servers</a>
+                        <a href="/tools" class="{% if request.url.path == '/tools' %}active{% endif %}">Tools</a>
+                    </nav>
+                </div>
+                <div class="user-info">
+                    {% if auth_enabled %}
+                        {% if current_user %}
+                            <span class="username">{{ current_user.username }}</span>
+                            <a href="/auth/web/logout" class="logout-btn">Logout</a>
+                        {% else %}
+                            <a href="/auth/web/login" class="login-btn">Login</a>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
         </div>
     </header>
 

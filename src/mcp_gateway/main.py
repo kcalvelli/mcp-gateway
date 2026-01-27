@@ -32,6 +32,7 @@ from .auth.middleware import (
     AuthenticationRequired,
     authentication_exception_handler,
 )
+from .auth.tokens import verify_token, TokenError
 
 # Configure logging
 logging.basicConfig(
@@ -352,6 +353,36 @@ def _json_type_to_python(json_type: str) -> str:
 # =============================================================================
 
 
+def _get_web_user(request: Request) -> AuthenticatedUser | None:
+    """Get user from session cookie for web UI pages."""
+    session_token = request.cookies.get("mcp_session")
+    if not session_token:
+        return None
+
+    try:
+        payload = verify_token(session_token)
+        scopes = payload.get("scope", "").split() if payload.get("scope") else []
+        return AuthenticatedUser(
+            subject=payload["sub"],
+            scopes=scopes,
+            claims=payload,
+        )
+    except TokenError:
+        return None
+
+
+def _get_template_context(request: Request) -> dict[str, Any]:
+    """Build common template context with auth info."""
+    config = get_auth_config()
+    user = _get_web_user(request) if config.enabled else None
+
+    return {
+        "request": request,
+        "auth_enabled": config.enabled,
+        "current_user": user,
+    }
+
+
 @app.get("/", response_class=HTMLResponse)
 async def ui_home(request: Request):
     """Render the orchestrator UI."""
@@ -363,14 +394,13 @@ async def ui_home(request: Request):
     servers = manager.get_all_servers() if manager else []
     tools_count = len(manager.get_all_tools()) if manager else 0
 
-    return templates.TemplateResponse(
-        "index.html",
-        {
-            "request": request,
-            "servers": servers,
-            "tools_count": tools_count,
-        },
-    )
+    context = _get_template_context(request)
+    context.update({
+        "servers": servers,
+        "tools_count": tools_count,
+    })
+
+    return templates.TemplateResponse("index.html", context)
 
 
 @app.get("/servers", response_class=HTMLResponse)
@@ -380,13 +410,11 @@ async def ui_servers(request: Request):
         return HTMLResponse(content="Templates not configured")
 
     servers = manager.get_all_servers() if manager else []
-    return templates.TemplateResponse(
-        "servers.html",
-        {
-            "request": request,
-            "servers": servers,
-        },
-    )
+
+    context = _get_template_context(request)
+    context["servers"] = servers
+
+    return templates.TemplateResponse("servers.html", context)
 
 
 @app.get("/tools", response_class=HTMLResponse)
@@ -407,13 +435,10 @@ async def ui_tools(request: Request):
                 }
             )
 
-    return templates.TemplateResponse(
-        "tools.html",
-        {
-            "request": request,
-            "tools": tools,
-        },
-    )
+    context = _get_template_context(request)
+    context["tools"] = tools
+
+    return templates.TemplateResponse("tools.html", context)
 
 
 # =============================================================================
