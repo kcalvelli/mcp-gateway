@@ -59,6 +59,12 @@ in {
       description = "List of server IDs to auto-enable on startup.";
     };
 
+    logLevel = mkOption {
+      type = types.enum [ "DEBUG" "INFO" "WARNING" "ERROR" ];
+      default = "INFO";
+      description = "Logging level for the mcp-gateway service.";
+    };
+
     openFirewall = mkOption {
       type = types.bool;
       default = false;
@@ -154,6 +160,7 @@ in {
         MCP_GATEWAY_HOST = cfg.host;
         MCP_GATEWAY_PORT = toString cfg.port;
         MCP_GATEWAY_AUTO_ENABLE = concatStringsSep "," cfg.autoEnable;
+        MCP_GATEWAY_LOG_LEVEL = cfg.logLevel;
         HOME = "/home/${cfg.user}";
         PYTHONUNBUFFERED = "1";
       } // optionalAttrs (cfg.configFile != null) {

@@ -27,8 +27,9 @@ from .server_manager import MCPServerManager
 from . import mcp_transport
 
 # Configure logging
+log_level = os.environ.get("MCP_GATEWAY_LOG_LEVEL", "INFO")
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, log_level, logging.INFO),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
