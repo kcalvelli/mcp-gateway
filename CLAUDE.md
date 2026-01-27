@@ -6,8 +6,10 @@ mcp-gateway is a universal MCP (Model Context Protocol) gateway that aggregates 
 
 1. **REST API** - HTTP endpoints for tool management and execution
 2. **MCP HTTP Transport** - Native MCP protocol (2025-06-18 spec) for Claude.ai
-3. **Declarative Config** - NixOS/home-manager modules for server configuration
+3. **Declarative Config** - Generic NixOS/home-manager modules for server configuration
 4. **OAuth2 Auth** (planned) - Secure remote access via GitHub OAuth
+
+**Note**: This is a generic MCP gateway. Distribution-specific content (system prompts, OpenSpec commands, shell aliases) should be added by the consuming project (e.g., axios).
 
 ## Architecture
 

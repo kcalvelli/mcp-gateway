@@ -70,18 +70,6 @@ let
 
   # Config JSON
   mcpConfigJson = builtins.toJSON { mcpServers = serverConfig; };
-
-  # Generate unified prompt
-  unifiedPrompt =
-    let
-      defaultPrompt = builtins.readFile ./prompts/axios-system-prompt.md;
-      extraInstructions = cfg.systemPrompt.extraInstructions;
-      hasExtra = extraInstructions != "";
-    in
-    if cfg.systemPrompt.enable then
-      defaultPrompt + (if hasExtra then "\n\n${extraInstructions}\n" else "")
-    else
-      "";
 in
 {
   options.services.mcp-gateway = {
@@ -125,21 +113,6 @@ in
       '';
     };
 
-    # System prompt configuration
-    systemPrompt = {
-      enable = lib.mkOption {
-        type = lib.types.bool;
-        default = true;
-        description = "Generate system prompt for AI tools";
-      };
-
-      extraInstructions = lib.mkOption {
-        type = lib.types.str;
-        default = "";
-        description = "Additional instructions to append to the system prompt";
-      };
-    };
-
     # Config generation options
     generateClaudeConfig = lib.mkOption {
       type = lib.types.bool;
@@ -159,18 +132,19 @@ in
       description = "Generate ~/.config/mcp/mcp_servers.json for mcp-gateway";
     };
 
-    # Shell aliases
-    shellAliases = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = "Add shell aliases for AI tools";
-    };
+    # Gemini configuration options
+    gemini = {
+      model = lib.mkOption {
+        type = lib.types.str;
+        default = "gemini-2.5-flash";
+        description = "Default Gemini model to use";
+      };
 
-    # OpenSpec commands
-    openspecCommands = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = "Install OpenSpec slash commands for Claude Code";
+      contextSize = lib.mkOption {
+        type = lib.types.int;
+        default = 32768;
+        description = "Context window size for Gemini";
+      };
     };
 
     # Service management
@@ -187,77 +161,28 @@ in
 
   config = lib.mkIf cfg.enable {
     # Generate MCP configuration files
-    home.file =
-      {
-        # Gateway/mcp-cli config
-        ".config/mcp/mcp_servers.json" = lib.mkIf cfg.generateGatewayConfig {
-          text = mcpConfigJson;
-        };
-
-        # Claude Code config
-        ".mcp.json" = lib.mkIf cfg.generateClaudeConfig {
-          text = mcpConfigJson;
-        };
-
-        # Gemini CLI config (without passwordCommand)
-        ".gemini/settings.json" = lib.mkIf cfg.generateGeminiConfig {
-          text = builtins.toJSON {
-            mcpServers = serverConfigNoPassword;
-            model = "gemini-2.0-flash-thinking-exp-01-21";
-            general = {
-              contextSize = 32768;
-              autoUpdate = false;
-            };
-          };
-        };
-
-        # System prompts
-        ".config/ai/prompts/axios.md" = lib.mkIf cfg.systemPrompt.enable {
-          text = unifiedPrompt;
-        };
-
-        ".config/ai/prompts/mcp-cli.md" = lib.mkIf cfg.systemPrompt.enable {
-          source = ./prompts/mcp-cli-system-prompt.md;
-        };
-
-        # OpenSpec commands for Claude Code
-        ".claude/commands/openspec/proposal.md" = lib.mkIf cfg.openspecCommands {
-          source = ./commands/openspec/proposal.md;
-        };
-
-        ".claude/commands/openspec/apply.md" = lib.mkIf cfg.openspecCommands {
-          source = ./commands/openspec/apply.md;
-        };
-
-        ".claude/commands/openspec/archive.md" = lib.mkIf cfg.openspecCommands {
-          source = ./commands/openspec/archive.md;
-        };
+    home.file = {
+      # Gateway/mcp-cli config
+      ".config/mcp/mcp_servers.json" = lib.mkIf cfg.generateGatewayConfig {
+        text = mcpConfigJson;
       };
 
-    # Shell aliases for AI tools
-    programs.bash.shellAliases = lib.mkIf cfg.shellAliases {
-      cm = "claude-monitor";
-      cmonitor = "claude-monitor";
-      ccm = "claude-monitor";
-      axios-claude = "claude --system-prompt ~/.config/ai/prompts/axios.md";
-      axc = "claude --system-prompt ~/.config/ai/prompts/axios.md";
-      axios-gemini = "gemini";
-      axg = "gemini";
-    };
+      # Claude Code config
+      ".mcp.json" = lib.mkIf cfg.generateClaudeConfig {
+        text = mcpConfigJson;
+      };
 
-    programs.zsh.shellAliases = lib.mkIf cfg.shellAliases {
-      cm = "claude-monitor";
-      cmonitor = "claude-monitor";
-      ccm = "claude-monitor";
-      axios-claude = "claude --system-prompt ~/.config/ai/prompts/axios.md";
-      axc = "claude --system-prompt ~/.config/ai/prompts/axios.md";
-      axios-gemini = "gemini";
-      axg = "gemini";
-    };
-
-    # Environment variable for Gemini CLI system prompt
-    home.sessionVariables = lib.mkIf cfg.systemPrompt.enable {
-      GEMINI_SYSTEM_MD = "${config.home.homeDirectory}/.config/ai/prompts/axios.md";
+      # Gemini CLI config (without passwordCommand)
+      ".gemini/settings.json" = lib.mkIf cfg.generateGeminiConfig {
+        text = builtins.toJSON {
+          mcpServers = serverConfigNoPassword;
+          model = cfg.gemini.model;
+          general = {
+            contextSize = cfg.gemini.contextSize;
+            autoUpdate = false;
+          };
+        };
+      };
     };
 
     # Systemd user service for mcp-gateway (only if manageService is true)
