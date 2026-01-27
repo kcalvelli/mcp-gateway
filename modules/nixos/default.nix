@@ -1,83 +1,179 @@
-# NixOS module for mcp-gateway systemd service
-{
-  config,
-  lib,
-  pkgs,
-  ...
-}:
+# NixOS module for mcp-gateway
+# Provides the systemd service and optional Tailscale Serve integration
+{ config, lib, pkgs, ... }:
+
+with lib;
+
 let
   cfg = config.services.mcp-gateway;
-in
-{
+in {
   options.services.mcp-gateway = {
-    enable = lib.mkEnableOption "MCP Gateway service";
+    enable = mkEnableOption "MCP Gateway REST API service";
 
-    package = lib.mkOption {
-      type = lib.types.package;
+    package = mkOption {
+      type = types.package;
       default = pkgs.mcp-gateway;
-      description = "The mcp-gateway package to use";
+      defaultText = literalExpression "pkgs.mcp-gateway";
+      description = "The mcp-gateway package to use.";
     };
 
-    port = lib.mkOption {
-      type = lib.types.port;
+    port = mkOption {
+      type = types.port;
       default = 8085;
-      description = "Port for the gateway to listen on";
+      description = "Port for the web UI and API.";
     };
 
-    host = lib.mkOption {
-      type = lib.types.str;
+    host = mkOption {
+      type = types.str;
       default = "127.0.0.1";
-      description = "Host address to bind to";
+      description = "Host address to bind to.";
     };
 
-    configFile = lib.mkOption {
-      type = lib.types.path;
-      description = "Path to the MCP servers configuration file";
+    user = mkOption {
+      type = types.str;
+      description = "User to run the service as. Config is read from this user's home.";
     };
 
-    autoEnable = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [ ];
-      description = "List of server IDs to auto-enable on startup";
+    group = mkOption {
+      type = types.str;
+      default = "users";
+      description = "Group to run the service as.";
     };
 
-    user = lib.mkOption {
-      type = lib.types.str;
-      default = "mcp-gateway";
-      description = "User to run mcp-gateway as";
+    configFile = mkOption {
+      type = types.nullOr types.path;
+      default = null;
+      description = ''
+        Path to the MCP servers configuration file.
+        If null, defaults to ~/.config/mcp/mcp_servers.json
+      '';
     };
 
-    group = lib.mkOption {
-      type = lib.types.str;
-      default = "mcp-gateway";
-      description = "Group to run mcp-gateway as";
+    autoEnable = mkOption {
+      type = types.listOf types.str;
+      default = [ "git" "github" ];
+      description = "List of server IDs to auto-enable on startup.";
     };
-  };
 
-  config = lib.mkIf cfg.enable {
-    # Create system user/group if using defaults
-    users.users = lib.mkIf (cfg.user == "mcp-gateway") {
-      mcp-gateway = {
-        isSystemUser = true;
-        group = cfg.group;
-        description = "MCP Gateway service user";
+    openFirewall = mkOption {
+      type = types.bool;
+      default = false;
+      description = "Open firewall port for the web UI.";
+    };
+
+    # OAuth2 configuration
+    oauth = {
+      enable = mkEnableOption "OAuth2 authentication for secure remote access";
+
+      baseUrl = mkOption {
+        type = types.str;
+        example = "https://mcp.example.com";
+        description = "Public base URL for OAuth callbacks.";
+      };
+
+      provider = mkOption {
+        type = types.enum [ "github" ];
+        default = "github";
+        description = "OAuth identity provider.";
+      };
+
+      clientId = mkOption {
+        type = types.str;
+        description = "OAuth client ID (e.g., GitHub OAuth App client ID).";
+      };
+
+      clientSecretFile = mkOption {
+        type = types.path;
+        description = "Path to file containing OAuth client secret.";
+      };
+
+      jwtSecretFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = "Path to file containing JWT signing secret. Auto-generated if null.";
+      };
+
+      allowedUsers = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+        description = "List of allowed usernames. Empty means all authenticated users allowed.";
+      };
+
+      accessTokenExpireMinutes = mkOption {
+        type = types.int;
+        default = 60;
+        description = "Access token expiration time in minutes.";
+      };
+
+      refreshTokenExpireDays = mkOption {
+        type = types.int;
+        default = 30;
+        description = "Refresh token expiration time in days.";
       };
     };
 
-    users.groups = lib.mkIf (cfg.group == "mcp-gateway") {
-      mcp-gateway = { };
-    };
+    # Tailscale Serve integration
+    tailscaleServe = {
+      enable = mkEnableOption "Tailscale Serve to expose mcp-gateway across your tailnet";
 
+      httpsPort = mkOption {
+        type = types.port;
+        default = 443;
+        description = ''
+          HTTPS port to expose on your tailnet.
+          The service will be available at https://{hostname}.{tailnet}:{httpsPort}
+        '';
+        example = 8443;
+      };
+    };
+  };
+
+  config = mkIf cfg.enable {
+    # Assertions
+    assertions = [
+      {
+        assertion = cfg.tailscaleServe.enable -> config.services.tailscale.enable;
+        message = "mcp-gateway: tailscaleServe requires services.tailscale.enable = true";
+      }
+      {
+        assertion = cfg.oauth.enable -> cfg.oauth.clientSecretFile != null;
+        message = "mcp-gateway: oauth.enable requires oauth.clientSecretFile to be set";
+      }
+    ];
+
+    # System service
     systemd.services.mcp-gateway = {
       description = "MCP Gateway REST API";
+      after = [ "network-online.target" ];
+      wants = [ "network-online.target" ];
       wantedBy = [ "multi-user.target" ];
-      after = [ "network.target" ];
+
+      path = [
+        pkgs.bash
+        pkgs.coreutils
+        pkgs.nodejs
+        pkgs.gh
+      ];
 
       environment = {
         MCP_GATEWAY_HOST = cfg.host;
         MCP_GATEWAY_PORT = toString cfg.port;
+        MCP_GATEWAY_AUTO_ENABLE = concatStringsSep "," cfg.autoEnable;
+        HOME = "/home/${cfg.user}";
+        PYTHONUNBUFFERED = "1";
+      } // optionalAttrs (cfg.configFile != null) {
         MCP_GATEWAY_CONFIG = cfg.configFile;
-        MCP_GATEWAY_AUTO_ENABLE = lib.concatStringsSep "," cfg.autoEnable;
+      } // optionalAttrs cfg.oauth.enable {
+        MCP_GATEWAY_OAUTH_ENABLED = "true";
+        MCP_GATEWAY_OAUTH_PROVIDER = cfg.oauth.provider;
+        MCP_GATEWAY_BASE_URL = cfg.oauth.baseUrl;
+        MCP_GATEWAY_GITHUB_CLIENT_ID = cfg.oauth.clientId;
+        MCP_GATEWAY_GITHUB_CLIENT_SECRET_FILE = toString cfg.oauth.clientSecretFile;
+        MCP_GATEWAY_ALLOWED_USERS = concatStringsSep "," cfg.oauth.allowedUsers;
+        MCP_GATEWAY_ACCESS_TOKEN_EXPIRE_MINUTES = toString cfg.oauth.accessTokenExpireMinutes;
+        MCP_GATEWAY_REFRESH_TOKEN_EXPIRE_DAYS = toString cfg.oauth.refreshTokenExpireDays;
+      } // optionalAttrs (cfg.oauth.enable && cfg.oauth.jwtSecretFile != null) {
+        MCP_GATEWAY_JWT_SECRET_FILE = toString cfg.oauth.jwtSecretFile;
       };
 
       serviceConfig = {
@@ -86,14 +182,50 @@ in
         Group = cfg.group;
         ExecStart = "${cfg.package}/bin/mcp-gateway";
         Restart = "on-failure";
-        RestartSec = 5;
+        RestartSec = "5s";
 
-        # Security hardening
+        # Hardening
         NoNewPrivileges = true;
         ProtectSystem = "strict";
         ProtectHome = "read-only";
+        ReadWritePaths = [
+          "/home/${cfg.user}/.local/share/mcp-gateway"
+          "/home/${cfg.user}/.config/mcp"
+        ];
         PrivateTmp = true;
       };
     };
+
+    # Tailscale Serve service
+    systemd.services.mcp-gateway-tailscale-serve = mkIf cfg.tailscaleServe.enable {
+      description = "MCP Gateway Tailscale Serve (HTTPS proxy)";
+      after = [ "network-online.target" "tailscaled.service" "mcp-gateway.service" ];
+      wants = [ "network-online.target" "tailscaled.service" ];
+      requires = [ "mcp-gateway.service" ];
+      wantedBy = [ "multi-user.target" ];
+
+      script = ''
+        # Wait up to 60 seconds for Tailscale to be connected
+        for i in $(seq 1 60); do
+          if ${pkgs.tailscale}/bin/tailscale status --json 2>/dev/null | ${pkgs.jq}/bin/jq -e '.BackendState == "Running"' >/dev/null 2>&1; then
+            echo "Tailscale is connected, starting serve..."
+            exec ${pkgs.tailscale}/bin/tailscale serve --bg --https=${toString cfg.tailscaleServe.httpsPort} ${toString cfg.port}
+          fi
+          echo "Waiting for Tailscale to connect... ($i/60)"
+          sleep 1
+        done
+        echo "Tailscale did not connect within 60 seconds"
+        exit 1
+      '';
+
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --https=${toString cfg.tailscaleServe.httpsPort} off";
+      };
+    };
+
+    # Firewall
+    networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [ cfg.port ];
   };
 }
