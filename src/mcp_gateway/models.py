@@ -18,10 +18,12 @@ class ServerStatus(str, Enum):
 class ServerConfig(BaseModel):
     """MCP server configuration."""
 
+    model_config = {"populate_by_name": True}
+
     command: str
     args: list[str] = Field(default_factory=list)
     env: dict[str, str] = Field(default_factory=dict)
-    password_command: dict[str, list[str]] = Field(default_factory=dict)
+    password_command: dict[str, list[str]] = Field(default_factory=dict, alias="passwordCommand")
 
 
 class ServerInfo(BaseModel):
