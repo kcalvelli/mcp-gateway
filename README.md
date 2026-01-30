@@ -123,6 +123,28 @@ curl -X POST http://localhost:8085/mcp \
 
 Tool names are namespaced as `{server_id}__{tool_name}` to avoid conflicts.
 
+### Gemini CLI
+
+Gemini CLI connects to mcp-gateway via its `httpUrl` transport. Add the gateway as a single MCP server:
+
+```bash
+gemini mcp add gateway --httpUrl http://localhost:8085/mcp
+```
+
+Or manually add to `~/.gemini/settings.json`:
+
+```json
+{
+  "mcpServers": {
+    "gateway": {
+      "httpUrl": "http://localhost:8085/mcp"
+    }
+  }
+}
+```
+
+All MCP servers managed by the gateway are automatically available to Gemini CLI through this single endpoint.
+
 ## Development
 
 ```bash

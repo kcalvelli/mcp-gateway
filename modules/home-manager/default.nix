@@ -3,8 +3,10 @@
 #
 # This module generates configuration files for:
 # - Claude Code (~/.mcp.json)
-# - Gemini CLI (~/.gemini/settings.json)
 # - mcp-gateway/mcp-cli (~/.config/mcp/mcp_servers.json)
+#
+# Gemini CLI connects via mcp-gateway's /mcp endpoint (httpUrl) rather than
+# direct stdio config, so its settings.json is user-managed.
 #
 # Server definitions are passed via the `servers` option, allowing
 # the caller (axios or user config) to provide fully resolved paths.
@@ -63,11 +65,6 @@ let
     // lib.optionalAttrs (server.passwordCommand != { }) { passwordCommand = server.passwordCommand; }
   ) enabledServers;
 
-  # Filter passwordCommand for tools that don't support it (Gemini)
-  serverConfigNoPassword = lib.mapAttrs (
-    name: server: builtins.removeAttrs server [ "passwordCommand" ]
-  ) serverConfig;
-
   # Config JSON
   mcpConfigJson = builtins.toJSON { mcpServers = serverConfig; };
 in
@@ -120,31 +117,10 @@ in
       description = "Generate ~/.mcp.json for Claude Code";
     };
 
-    generateGeminiConfig = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = "Generate ~/.gemini/settings.json for Gemini CLI";
-    };
-
     generateGatewayConfig = lib.mkOption {
       type = lib.types.bool;
       default = true;
       description = "Generate ~/.config/mcp/mcp_servers.json for mcp-gateway";
-    };
-
-    # Gemini configuration options
-    gemini = {
-      model = lib.mkOption {
-        type = lib.types.str;
-        default = "gemini-2.5-flash";
-        description = "Default Gemini model to use";
-      };
-
-      contextSize = lib.mkOption {
-        type = lib.types.int;
-        default = 32768;
-        description = "Context window size for Gemini";
-      };
     };
 
     # Service management
@@ -170,18 +146,6 @@ in
       # Claude Code config
       ".mcp.json" = lib.mkIf cfg.generateClaudeConfig {
         text = mcpConfigJson;
-      };
-
-      # Gemini CLI config (without passwordCommand)
-      ".gemini/settings.json" = lib.mkIf cfg.generateGeminiConfig {
-        text = builtins.toJSON {
-          mcpServers = serverConfigNoPassword;
-          model = cfg.gemini.model;
-          general = {
-            contextSize = cfg.gemini.contextSize;
-            autoUpdate = false;
-          };
-        };
       };
     };
 
