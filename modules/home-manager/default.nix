@@ -2,8 +2,9 @@
 # Provides declarative MCP server configuration for multiple AI tools
 #
 # This module generates configuration files for:
-# - Claude Code (~/.mcp.json)
-# - mcp-gateway/mcp-cli (~/.config/mcp/mcp_servers.json)
+# - mcp-gateway/mcp-cli (~/.config/mcp/mcp_servers.json) — always generated
+# - Claude Code (~/.mcp.json) — disabled by default (use mcp-cli skill instead)
+# - Claude Code skill (~/.claude/commands/mcp-cli.md) — on-demand MCP tool discovery
 #
 # Gemini CLI connects via mcp-gateway's /mcp endpoint (httpUrl) rather than
 # direct stdio config, so its settings.json is user-managed.
@@ -113,14 +114,20 @@ in
     # Config generation options
     generateClaudeConfig = lib.mkOption {
       type = lib.types.bool;
-      default = true;
-      description = "Generate ~/.mcp.json for Claude Code";
+      default = false;
+      description = "Generate ~/.mcp.json for Claude Code native MCP server spawning";
     };
 
     generateGatewayConfig = lib.mkOption {
       type = lib.types.bool;
       default = true;
       description = "Generate ~/.config/mcp/mcp_servers.json for mcp-gateway";
+    };
+
+    generateClaudeSkill = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Install ~/.claude/commands/mcp-cli.md skill for on-demand MCP tool discovery";
     };
 
     # Service management
@@ -136,6 +143,9 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # mcp-cli binary for on-demand MCP tool discovery
+    home.packages = [ pkgs.mcp-cli ];
+
     # Generate MCP configuration files
     home.file = {
       # Gateway/mcp-cli config
@@ -143,9 +153,14 @@ in
         text = mcpConfigJson;
       };
 
-      # Claude Code config
+      # Claude Code native MCP config (disabled by default — use mcp-cli skill instead)
       ".mcp.json" = lib.mkIf cfg.generateClaudeConfig {
         text = mcpConfigJson;
+      };
+
+      # Claude Code skill for on-demand MCP tool discovery via mcp-cli
+      ".claude/commands/mcp-cli.md" = lib.mkIf cfg.generateClaudeSkill {
+        source = ../../commands/mcp-cli.md;
       };
     };
 
