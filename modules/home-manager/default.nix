@@ -5,9 +5,7 @@
 # - mcp-gateway/mcp-cli (~/.config/mcp/mcp_servers.json) — always generated
 # - Claude Code (~/.mcp.json) — disabled by default (use mcp-cli skill instead)
 # - Claude Code skill (~/.claude/commands/mcp-cli.md) — on-demand MCP tool discovery
-#
-# Gemini CLI connects via mcp-gateway's /mcp endpoint (httpUrl) rather than
-# direct stdio config, so its settings.json is user-managed.
+# - Gemini CLI skill (~/.gemini/skills/mcp-cli/SKILL.md) — on-demand MCP tool discovery
 #
 # Server definitions are passed via the `servers` option, allowing
 # the caller (axios or user config) to provide fully resolved paths.
@@ -130,6 +128,12 @@ in
       description = "Install ~/.claude/commands/mcp-cli.md skill for on-demand MCP tool discovery";
     };
 
+    generateGeminiSkill = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Install ~/.gemini/skills/mcp-cli/SKILL.md skill for on-demand MCP tool discovery";
+    };
+
     # Service management
     manageService = lib.mkOption {
       type = lib.types.bool;
@@ -160,6 +164,11 @@ in
 
       # Claude Code skill for on-demand MCP tool discovery via mcp-cli
       ".claude/commands/mcp-cli.md" = lib.mkIf cfg.generateClaudeSkill {
+        source = ../../commands/mcp-cli.md;
+      };
+
+      # Gemini CLI skill for on-demand MCP tool discovery via mcp-cli
+      ".gemini/skills/mcp-cli/SKILL.md" = lib.mkIf cfg.generateGeminiSkill {
         source = ../../commands/mcp-cli.md;
       };
     };
