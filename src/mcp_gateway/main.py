@@ -74,7 +74,7 @@ async def lifespan(app: FastAPI):
     auto_enable_env = os.environ.get("MCP_GATEWAY_AUTO_ENABLE", "").strip()
     if auto_enable_env == "*":
         # Enable all configured servers
-        auto_enable = list(manager.servers.keys())
+        auto_enable = manager.get_server_ids()
     else:
         auto_enable = [s.strip() for s in auto_enable_env.split(",") if s.strip()]
     if auto_enable:
