@@ -1,6 +1,6 @@
 ---
 name: mcp-cli
-description: Interface for MCP (Model Context Protocol) servers via CLI. Use when you need to interact with external tools, APIs, or data sources through MCP servers.
+description: "Interface for MCP servers via CLI. Use when you need to interact with external tools, APIs, or data sources through MCP servers."
 category: MCP
 tags: [mcp, tools, servers]
 ---
