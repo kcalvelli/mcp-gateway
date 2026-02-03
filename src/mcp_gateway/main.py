@@ -71,8 +71,12 @@ async def lifespan(app: FastAPI):
     await manager.load_config()
 
     # Auto-enable servers in background (non-blocking)
-    auto_enable = os.environ.get("MCP_GATEWAY_AUTO_ENABLE", "").split(",")
-    auto_enable = [s.strip() for s in auto_enable if s.strip()]
+    auto_enable_env = os.environ.get("MCP_GATEWAY_AUTO_ENABLE", "").strip()
+    if auto_enable_env == "*":
+        # Enable all configured servers
+        auto_enable = list(manager.servers.keys())
+    else:
+        auto_enable = [s.strip() for s in auto_enable_env.split(",") if s.strip()]
     if auto_enable:
         logger.info(f"Starting background auto-enable for: {auto_enable}")
         _auto_enable_task = asyncio.create_task(_auto_enable_servers(auto_enable))

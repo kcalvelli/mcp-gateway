@@ -59,6 +59,12 @@ in {
       description = "List of server IDs to auto-enable on startup.";
     };
 
+    autoEnableAll = mkOption {
+      type = types.bool;
+      default = false;
+      description = "Auto-enable all configured servers on startup (overrides autoEnable).";
+    };
+
     logLevel = mkOption {
       type = types.enum [ "DEBUG" "INFO" "WARNING" "ERROR" ];
       default = "INFO";
@@ -159,7 +165,7 @@ in {
       environment = {
         MCP_GATEWAY_HOST = cfg.host;
         MCP_GATEWAY_PORT = toString cfg.port;
-        MCP_GATEWAY_AUTO_ENABLE = concatStringsSep "," cfg.autoEnable;
+        MCP_GATEWAY_AUTO_ENABLE = if cfg.autoEnableAll then "*" else concatStringsSep "," cfg.autoEnable;
         MCP_GATEWAY_LOG_LEVEL = cfg.logLevel;
         HOME = "/home/${cfg.user}";
         PYTHONUNBUFFERED = "1";

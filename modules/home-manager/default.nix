@@ -66,6 +66,10 @@ let
 
   # Config JSON
   mcpConfigJson = builtins.toJSON { mcpServers = serverConfig; };
+
+  # Compute auto-enable value ("*" for all, or comma-separated list)
+  autoEnableValue =
+    if cfg.autoEnableAll then "*" else lib.concatStringsSep "," cfg.autoEnable;
 in
 {
   options.services.mcp-gateway = {
@@ -87,6 +91,12 @@ in
       type = lib.types.listOf lib.types.str;
       default = [ ];
       description = "Server IDs to auto-enable on gateway startup";
+    };
+
+    autoEnableAll = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Auto-enable all configured servers on gateway startup (overrides autoEnable)";
     };
 
     servers = lib.mkOption {
@@ -190,7 +200,7 @@ in
           "MCP_GATEWAY_HOST=127.0.0.1"
           "MCP_GATEWAY_PORT=${toString cfg.port}"
           "MCP_GATEWAY_CONFIG=%h/.config/mcp/mcp_servers.json"
-          "MCP_GATEWAY_AUTO_ENABLE=${lib.concatStringsSep "," cfg.autoEnable}"
+          "MCP_GATEWAY_AUTO_ENABLE=${autoEnableValue}"
           "PATH=${lib.makeBinPath [ pkgs.nodejs pkgs.bash pkgs.coreutils ]}:$PATH"
         ];
       };
