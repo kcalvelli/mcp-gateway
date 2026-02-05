@@ -1,0 +1,31 @@
+schema: spec-driven
+
+context: |
+  MCP Gateway - A universal MCP (Model Context Protocol) gateway that aggregates
+  multiple MCP servers behind a single interface.
+
+  Tech stack: Python, FastAPI, Nix (NixOS + home-manager modules)
+
+  Scope:
+  - REST API for tool discovery and execution
+  - MCP Streamable HTTP transport for native MCP clients
+  - Declarative Nix configuration (NixOS + home-manager modules)
+  - Integration with Tailscale for secure network access
+
+  Non-goals:
+  - Public internet exposure (rely on Tailscale for network security)
+  - OAuth/authentication layer (Tailscale provides identity)
+  - Direct Claude.ai integration (not technically feasible)
+
+  Related projects:
+  - axios - NixOS framework that imports this
+  - axios-ai-mail - Email MCP server
+  - mcp-dav - Calendar/contacts MCP server
+
+rules:
+  proposal:
+    - Include a "Non-goals" section when appropriate
+    - Tailscale-First Security - network-level access control via Tailscale, not application-level OAuth
+    - Single Source of Truth - one configuration generates configs for all AI tools
+    - Protocol Bridge - translate between stdio MCP servers and HTTP clients
+    - Minimal Dependencies - keep the gateway lightweight and focused
