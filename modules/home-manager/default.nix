@@ -157,6 +157,9 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # mcp-gw CLI (and mcp-gateway) in user PATH
+    home.packages = [ cfg.package ];
+
     # Generate MCP configuration files
     home.file = {
       # Gateway/mcp-cli config
