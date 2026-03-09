@@ -6,8 +6,9 @@ mcp-gateway is a universal MCP (Model Context Protocol) gateway that aggregates 
 
 1. **REST API** - HTTP endpoints for tool management and execution
 2. **MCP HTTP Transport** - Native MCP protocol (2025-06-18 spec) for MCP clients
-3. **Declarative Config** - Generic NixOS/home-manager modules for server configuration
-4. **Tailscale Integration** - Network-level security via Tailscale Services
+3. **CLI Client** (`mcp-gw`) - Thin CLI for gateway access from any machine on the tailnet
+4. **Declarative Config** - Generic NixOS/home-manager modules for server configuration
+5. **Tailscale Integration** - Network-level security via Tailscale Services
 
 **Security Model**: No application-level authentication. Network security is provided by Tailscale - only devices on your tailnet can access the gateway.
 
@@ -33,6 +34,7 @@ mcp-gateway is a universal MCP (Model Context Protocol) gateway that aggregates 
 ## Key Files
 
 - `src/mcp_gateway/main.py` - FastAPI application, routes, CORS
+- `src/mcp_gateway/cli.py` - `mcp-gw` CLI client
 - `src/mcp_gateway/mcp_transport.py` - MCP HTTP transport implementation
 - `src/mcp_gateway/server_manager.py` - MCP server lifecycle management
 - `src/mcp_gateway/models.py` - Pydantic models
@@ -51,10 +53,21 @@ nix develop
 # Run gateway
 mcp-gateway
 
+# CLI client
+mcp-gw list                                    # list servers
+mcp-gw info <server>                           # show server tools
+mcp-gw info <server> <tool>                    # show tool schema
+mcp-gw call <server> <tool> '{"key":"value"}'  # call a tool
+mcp-gw grep <pattern>                          # search tools
+mcp-gw --gateway http://host:8085 list         # custom gateway URL
+
 # Test endpoints
 curl http://localhost:8085/health
 curl http://localhost:8085/api/servers
 curl http://localhost:8085/api/tools
+
+# Run tests
+pytest
 ```
 
 ## MCP Protocol Notes

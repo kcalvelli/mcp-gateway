@@ -23,6 +23,7 @@ dependencies = [
 
 [project.scripts]
 mcp-gateway = "mcp_gateway.main:main"
+mcp-gw = "mcp_gateway.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mcp_gateway"]
