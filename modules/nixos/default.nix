@@ -177,7 +177,15 @@ in {
         Type = "simple";
         User = cfg.user;
         Group = cfg.group;
-        ExecStart = "${cfg.package}/bin/mcp-gateway";
+        ExecStart = let
+          wrapper = pkgs.writeShellScript "mcp-gateway-start" ''
+            # Provide D-Bus access for passwordCommand (gh auth token uses keyring)
+            uid=$(${pkgs.coreutils}/bin/id -u)
+            export XDG_RUNTIME_DIR="/run/user/$uid"
+            export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus"
+            exec ${cfg.package}/bin/mcp-gateway
+          '';
+        in "${wrapper}";
         Restart = "on-failure";
         RestartSec = "5s";
 
@@ -193,17 +201,12 @@ in {
           "/home/${cfg.user}/.contacts"   # For mcp-dav contact writes
         ];
         PrivateTmp = true;
-        EnvironmentFile = "/home/${cfg.user}/.local/share/mcp-gateway/env";
       };
 
-      # Ensure data directories exist and resolve runtime UID for D-Bus/keyring access
-      # (passwordCommand uses gh auth token which stores credentials in the keyring)
+      # Ensure data directories exist before service starts
       preStart = ''
         mkdir -p /home/${cfg.user}/.local/share/mcp-gateway
         mkdir -p /home/${cfg.user}/.npm
-        uid=$(${pkgs.coreutils}/bin/id -u)
-        echo "XDG_RUNTIME_DIR=/run/user/$uid" > /home/${cfg.user}/.local/share/mcp-gateway/env
-        echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus" >> /home/${cfg.user}/.local/share/mcp-gateway/env
       '';
     };
 
