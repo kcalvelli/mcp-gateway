@@ -157,9 +157,6 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    # mcp-cli binary for on-demand MCP tool discovery
-    home.packages = [ pkgs.mcp-cli ];
-
     # Generate MCP configuration files
     home.file = {
       # Gateway/mcp-cli config
