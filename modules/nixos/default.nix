@@ -169,9 +169,6 @@ in {
         MCP_GATEWAY_LOG_LEVEL = cfg.logLevel;
         HOME = "/home/${cfg.user}";
         PYTHONUNBUFFERED = "1";
-        # gh auth token uses the keyring, which needs D-Bus access
-        XDG_RUNTIME_DIR = "/run/user/${toString config.users.users.${cfg.user}.uid}";
-        DBUS_SESSION_BUS_ADDRESS = "unix:path=/run/user/${toString config.users.users.${cfg.user}.uid}/bus";
       } // optionalAttrs (cfg.configFile != null) {
         MCP_GATEWAY_CONFIG = cfg.configFile;
       };
@@ -196,12 +193,17 @@ in {
           "/home/${cfg.user}/.contacts"   # For mcp-dav contact writes
         ];
         PrivateTmp = true;
+        EnvironmentFile = "/home/${cfg.user}/.local/share/mcp-gateway/env";
       };
 
-      # Ensure data directories exist before service starts
+      # Ensure data directories exist and resolve runtime UID for D-Bus/keyring access
+      # (passwordCommand uses gh auth token which stores credentials in the keyring)
       preStart = ''
         mkdir -p /home/${cfg.user}/.local/share/mcp-gateway
         mkdir -p /home/${cfg.user}/.npm
+        uid=$(${pkgs.coreutils}/bin/id -u)
+        echo "XDG_RUNTIME_DIR=/run/user/$uid" > /home/${cfg.user}/.local/share/mcp-gateway/env
+        echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus" >> /home/${cfg.user}/.local/share/mcp-gateway/env
       '';
     };
 
