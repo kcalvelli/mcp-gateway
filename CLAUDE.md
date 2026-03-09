@@ -18,9 +18,9 @@ mcp-gateway is a universal MCP (Model Context Protocol) gateway that aggregates 
 ```
 ┌─────────────────┐     ┌─────────────────────────────────┐     ┌─────────────────┐
 │   Claude Code   │────▶│         mcp-gateway             │────▶│   MCP Servers   │
-│   Gemini CLI    │     │  /mcp     (MCP transport)       │     │  - git          │
-│   Open WebUI    │     │  /api/*   (REST API)            │     │  - github       │
-└─────────────────┘     │  /tools/* (OpenAPI endpoints)   │     │  - filesystem   │
+│   Gemini CLI    │     │  /mcp     (MCP transport)       │     │  - github       │
+│   Open WebUI    │     │  /api/*   (REST API)            │     │  - brave-search │
+└─────────────────┘     │  /tools/* (OpenAPI endpoints)   │     │  - mcp-dav      │
                         └─────────────────────────────────┘     │  - etc.         │
                                                                 └─────────────────┘
 ```
@@ -71,10 +71,11 @@ The MCP transport (`/mcp` endpoint) implements the Streamable HTTP spec:
 # In home-manager config
 services.mcp-gateway = {
   enable = true;
-  autoEnable = [ "git" "github" ];
+  autoEnable = [ "github" "time" ];
   servers = {
-    git.enable = true;
-    git.command = "${pkgs.mcp-server-git}/bin/mcp-server-git";
+    github.enable = true;
+    github.command = "${pkgs.github-mcp-server}/bin/github-mcp-server";
+    github.args = [ "stdio" ];
   };
 };
 ```

@@ -38,11 +38,12 @@ No application-level authentication. Network security is provided by Tailscale:
 
       services.mcp-gateway = {
         enable = true;
-        autoEnable = [ "git" "github" ];
+        autoEnable = [ "github" "time" ];
         servers = {
-          git = {
+          github = {
             enable = true;
-            command = "${pkgs.mcp-server-git}/bin/mcp-server-git";
+            command = "${pkgs.github-mcp-server}/bin/github-mcp-server";
+            args = [ "stdio" ];
           };
           # ... more servers
         };
@@ -73,7 +74,7 @@ services.mcp-gateway.servers.myserver = {
 ### Auto-Enable Servers
 
 ```nix
-services.mcp-gateway.autoEnable = [ "git" "github" "filesystem" ];
+services.mcp-gateway.autoEnable = [ "github" "time" "brave-search" ];
 ```
 
 ### Tailscale Services (NixOS)

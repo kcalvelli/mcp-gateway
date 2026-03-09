@@ -7,7 +7,7 @@ tags: [mcp, tools, servers]
 
 # MCP-CLI
 
-Access MCP servers through the command line. MCP enables interaction with external systems like GitHub, filesystems, databases, and APIs.
+Access MCP servers through the command line. MCP enables interaction with external systems like GitHub, calendars, contacts, email, and APIs.
 
 ## Commands
 
@@ -47,37 +47,36 @@ mcp-cli
 mcp-cli -d
 
 # See server tools
-mcp-cli info filesystem
+mcp-cli info github
 
 # Get tool schema (both formats work)
-mcp-cli info filesystem read_file
-mcp-cli info filesystem/read_file
+mcp-cli info github search_repositories
+mcp-cli info github/search_repositories
 
 # Call tool
-mcp-cli call filesystem read_file '{"path": "./README.md"}'
+mcp-cli call time get_current_time '{"timezone": "America/New_York"}'
 
 # Pipe from stdin (no '-' needed!)
-cat args.json | mcp-cli call filesystem read_file
+cat args.json | mcp-cli call github search_repositories
 
 # Search for tools
-mcp-cli grep "*file*"
+mcp-cli grep "*search*"
 
 # Extract text from result
-mcp-cli call filesystem read_file '{"path": "./file"}' | jq -r '.content[0].text'
+mcp-cli call time get_current_time '{"timezone": "UTC"}' | jq -r '.content[0].text'
 ```
 
 ## Advanced Chaining
 
 ```bash
-# Chain: search files then read first match
-mcp-cli call filesystem search_files '{"path": ".", "pattern": "*.md"}' \
-  | jq -r '.content[0].text | split("\n")[0]' \
-  | xargs -I {} mcp-cli call filesystem read_file '{"path": "{}"}'
+# Chain: search repos then get details
+mcp-cli call github search_repositories '{"query": "mcp-server", "per_page": 3}' \
+  | jq -r '.content[0].text'
 
 # Multi-server aggregation
 {
   mcp-cli call github search_repositories '{"query": "mcp", "per_page": 3}'
-  mcp-cli call filesystem list_directory '{"path": "."}'
+  mcp-cli call brave-search brave_web_search '{"query": "MCP protocol"}'
 } | jq -s '.'
 ```
 
