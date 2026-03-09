@@ -169,6 +169,9 @@ in {
         MCP_GATEWAY_LOG_LEVEL = cfg.logLevel;
         HOME = "/home/${cfg.user}";
         PYTHONUNBUFFERED = "1";
+        # gh auth token uses the keyring, which needs D-Bus access
+        XDG_RUNTIME_DIR = "/run/user/${toString config.users.users.${cfg.user}.uid}";
+        DBUS_SESSION_BUS_ADDRESS = "unix:path=/run/user/${toString config.users.users.${cfg.user}.uid}/bus";
       } // optionalAttrs (cfg.configFile != null) {
         MCP_GATEWAY_CONFIG = cfg.configFile;
       };
