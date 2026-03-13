@@ -25,9 +25,19 @@ let
       options = {
         enable = lib.mkEnableOption "MCP server ${name}";
 
+        transport = lib.mkOption {
+          type = lib.types.enum [
+            "stdio"
+            "http"
+          ];
+          default = "stdio";
+          description = "Transport type: stdio (subprocess) or http (Streamable HTTP)";
+        };
+
         command = lib.mkOption {
           type = lib.types.str;
-          description = "Command to run the MCP server";
+          default = "";
+          description = "Command to run the MCP server (required for stdio transport)";
         };
 
         args = lib.mkOption {
@@ -36,16 +46,22 @@ let
           description = "Arguments to pass to the command";
         };
 
+        url = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = "URL of the MCP server (required for http transport)";
+        };
+
         env = lib.mkOption {
           type = lib.types.attrsOf lib.types.str;
           default = { };
-          description = "Environment variables for the server";
+          description = "Environment variables for the server (stdio transport)";
         };
 
         passwordCommand = lib.mkOption {
           type = lib.types.attrsOf (lib.types.listOf lib.types.str);
           default = { };
-          description = "Commands to retrieve secrets (Claude Code only)";
+          description = "Commands to retrieve secrets: env vars (stdio) or HTTP headers (http)";
         };
       };
     };
@@ -56,10 +72,11 @@ let
   # Convert to mcpServers format
   serverConfig = lib.mapAttrs (
     name: server:
-    {
-      command = server.command;
-    }
+    { }
+    // lib.optionalAttrs (server.transport != "stdio") { transport = server.transport; }
+    // lib.optionalAttrs (server.command != "") { command = server.command; }
     // lib.optionalAttrs (server.args != [ ]) { args = server.args; }
+    // lib.optionalAttrs (server.url != null) { url = server.url; }
     // lib.optionalAttrs (server.env != { }) { env = server.env; }
     // lib.optionalAttrs (server.passwordCommand != { }) { passwordCommand = server.passwordCommand; }
   ) enabledServers;

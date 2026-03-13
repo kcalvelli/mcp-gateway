@@ -1,9 +1,9 @@
 """Pydantic models for MCP Gateway API."""
 
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ServerStatus(str, Enum):
@@ -20,10 +20,20 @@ class ServerConfig(BaseModel):
 
     model_config = {"populate_by_name": True}
 
-    command: str
+    transport: Literal["stdio", "http"] = "stdio"
+    command: str = ""
     args: list[str] = Field(default_factory=list)
+    url: str | None = None
     env: dict[str, str] = Field(default_factory=dict)
     password_command: dict[str, list[str]] = Field(default_factory=dict, alias="passwordCommand")
+
+    @model_validator(mode="after")
+    def validate_transport(self) -> "ServerConfig":
+        if self.transport == "http" and not self.url:
+            raise ValueError("url is required for http transport")
+        if self.transport == "stdio" and not self.command:
+            raise ValueError("command is required for stdio transport")
+        return self
 
 
 class ServerInfo(BaseModel):

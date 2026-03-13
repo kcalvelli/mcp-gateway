@@ -11,8 +11,10 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+import httpx
 from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
+from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, TextContent
 
 from .models import ServerConfig, ServerInfo, ServerStatus, ToolSchema
@@ -30,11 +32,12 @@ class MCPServerConnection:
         self.error: str | None = None
         self.tools: dict[str, ToolSchema] = {}
         # SDK context managers
-        self._stdio_context: Any = None
+        self._transport_context: Any = None
         self._session_context: Any = None
         self._session: ClientSession | None = None
         self._read_stream: Any = None
         self._write_stream: Any = None
+        self._http_client: httpx.AsyncClient | None = None
 
     def _resolve_password_commands(self) -> dict[str, str]:
         """Execute passwordCommand entries to get secrets."""
@@ -67,25 +70,33 @@ class MCPServerConnection:
         self.error = None
 
         try:
-            # Prepare environment - merge with current env
-            env = os.environ.copy()
-            env.update(self.config.env)
-
-            # Execute passwordCommand to get secrets
+            # Resolve passwordCommand secrets
+            secrets = {}
             if self.config.password_command:
                 secrets = self._resolve_password_commands()
+
+            if self.config.transport == "http":
+                # HTTP transport — secrets become HTTP headers
+                self._http_client = httpx.AsyncClient(headers=secrets)
+                self._transport_context = streamable_http_client(
+                    self.config.url,
+                    http_client=self._http_client,
+                )
+                read, write, _get_session_id = await self._transport_context.__aenter__()
+                self._read_stream, self._write_stream = read, write
+            else:
+                # stdio transport — secrets become env vars
+                env = os.environ.copy()
+                env.update(self.config.env)
                 env.update(secrets)
 
-            # Create server parameters
-            server_params = StdioServerParameters(
-                command=self.config.command,
-                args=self.config.args,
-                env=env,
-            )
-
-            # Enter stdio_client context manager
-            self._stdio_context = stdio_client(server_params)
-            self._read_stream, self._write_stream = await self._stdio_context.__aenter__()
+                server_params = StdioServerParameters(
+                    command=self.config.command,
+                    args=self.config.args,
+                    env=env,
+                )
+                self._transport_context = stdio_client(server_params)
+                self._read_stream, self._write_stream = await self._transport_context.__aenter__()
 
             # Enter ClientSession context manager
             self._session_context = ClientSession(self._read_stream, self._write_stream)
@@ -119,15 +130,23 @@ class MCPServerConnection:
             self._session_context = None
             self._session = None
 
-        # Exit stdio context
-        if self._stdio_context:
+        # Exit transport context
+        if self._transport_context:
             try:
-                await self._stdio_context.__aexit__(None, None, None)
+                await self._transport_context.__aexit__(None, None, None)
             except Exception as e:
-                logger.debug(f"Error closing stdio for {self.server_id}: {e}")
-            self._stdio_context = None
+                logger.debug(f"Error closing transport for {self.server_id}: {e}")
+            self._transport_context = None
             self._read_stream = None
             self._write_stream = None
+
+        # Close HTTP client if applicable
+        if self._http_client:
+            try:
+                await self._http_client.aclose()
+            except Exception as e:
+                logger.debug(f"Error closing HTTP client for {self.server_id}: {e}")
+            self._http_client = None
 
         self.status = ServerStatus.DISCONNECTED
         self.tools = {}
@@ -203,8 +222,10 @@ class MCPServerManager:
             mcp_servers = data.get("mcpServers", {})
             for server_id, config in mcp_servers.items():
                 self._configs[server_id] = ServerConfig(
+                    transport=config.get("transport", "stdio"),
                     command=config.get("command", ""),
                     args=config.get("args", []),
+                    url=config.get("url"),
                     env=config.get("env", {}),
                     password_command=config.get("passwordCommand", {}),
                 )
