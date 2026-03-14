@@ -81,6 +81,10 @@ async def lifespan(app: FastAPI):
         logger.info(f"Starting background auto-enable for: {auto_enable}")
         _auto_enable_task = asyncio.create_task(_auto_enable_servers(auto_enable))
 
+    # Start periodic health checks for server resilience
+    health_interval = int(os.environ.get("MCP_GATEWAY_HEALTH_INTERVAL", "30"))
+    await manager.start_health_check(interval=health_interval)
+
     yield
 
     # Cancel auto-enable task if still running

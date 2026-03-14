@@ -155,7 +155,7 @@ class MCPServerConnection:
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> Any:
         """Execute a tool and return the result."""
         if self.status != ServerStatus.CONNECTED or self._session is None:
-            raise RuntimeError(f"Server {self.server_id} is not connected")
+            raise ConnectionError(f"Server {self.server_id} is not connected")
 
         logger.debug(f"MCPServerConnection.call_tool: {tool_name} with args: {arguments}")
 
@@ -175,7 +175,49 @@ class MCPServerConnection:
             return content_list
 
         except Exception as e:
+            # Detect transport/connection failures and mark server as broken
+            if self._is_transport_error(e):
+                self.status = ServerStatus.ERROR
+                self.error = f"Transport error: {e}"
+                logger.warning(f"Server {self.server_id} transport error: {e}")
+                raise ConnectionError(f"Server {self.server_id} connection lost: {e}") from e
             raise RuntimeError(f"Tool call failed: {e}") from e
+
+    @staticmethod
+    def _is_transport_error(e: Exception) -> bool:
+        """Determine if an exception indicates a broken transport/connection."""
+        # Broken pipe, closed stream, EOF, connection reset, etc.
+        transport_indicators = (
+            BrokenPipeError, ConnectionError, ConnectionResetError,
+            EOFError, OSError,
+        )
+        if isinstance(e, transport_indicators):
+            return True
+        # Check the exception chain
+        cause = e.__cause__ or e.__context__
+        if cause and isinstance(cause, transport_indicators):
+            return True
+        # Heuristic: check message for common transport failure patterns
+        msg = str(e).lower()
+        transport_phrases = (
+            "broken pipe", "connection reset", "connection refused",
+            "stream closed", "eof", "transport", "disconnected",
+            "process exited", "already closed", "closed resource",
+        )
+        return any(phrase in msg for phrase in transport_phrases)
+
+    async def ping(self) -> bool:
+        """Check if the server connection is still alive."""
+        if self.status != ServerStatus.CONNECTED or self._session is None:
+            return False
+        try:
+            await self._session.send_ping()
+            return True
+        except Exception as e:
+            logger.warning(f"Health check failed for {self.server_id}: {e}")
+            self.status = ServerStatus.ERROR
+            self.error = f"Health check failed: {e}"
+            return False
 
     async def _list_tools(self):
         """Fetch available tools from the server."""
@@ -207,6 +249,8 @@ class MCPServerManager:
         self.enabled_servers: set[str] = set()
         self.config_path = config_path or os.path.expanduser("~/.config/mcp/mcp_servers.json")
         self._configs: dict[str, ServerConfig] = {}
+        self._health_check_task: asyncio.Task | None = None
+        self._health_check_interval: int = 30
 
     async def load_config(self):
         """Load MCP server configuration from file."""
@@ -313,19 +357,80 @@ class MCPServerManager:
     async def call_tool(
         self, server_id: str, tool_name: str, arguments: dict[str, Any]
     ) -> Any:
-        """Execute a tool on a server."""
+        """Execute a tool on a server, with automatic reconnect on transport failure."""
         conn = self.servers.get(server_id)
         if not conn:
             raise RuntimeError(f"Server {server_id} not found")
-        if conn.status != ServerStatus.CONNECTED:
-            raise RuntimeError(f"Server {server_id} is not connected")
         if tool_name not in conn.tools:
             raise RuntimeError(f"Tool {tool_name} not found on server {server_id}")
 
-        return await conn.call_tool(tool_name, arguments)
+        # If server is in ERROR state, try to reconnect before giving up
+        if conn.status != ServerStatus.CONNECTED:
+            if server_id in self.enabled_servers:
+                logger.info(f"Server {server_id} not connected, attempting reconnect")
+                if not await self._reconnect(server_id):
+                    raise RuntimeError(f"Server {server_id} is not connected and reconnect failed")
+            else:
+                raise RuntimeError(f"Server {server_id} is not connected")
+
+        try:
+            return await conn.call_tool(tool_name, arguments)
+        except ConnectionError:
+            # Transport broke — reconnect and retry once
+            logger.info(f"Connection lost to {server_id}, reconnecting and retrying")
+            if await self._reconnect(server_id):
+                # Use fresh connection (reconnect replaces the connection object)
+                return await self.servers[server_id].call_tool(tool_name, arguments)
+            raise RuntimeError(f"Server {server_id} reconnect failed after transport error")
+
+    async def _reconnect(self, server_id: str) -> bool:
+        """Disconnect and reconnect a server."""
+        conn = self.servers.get(server_id)
+        if not conn:
+            return False
+        await conn.disconnect()
+        # Re-create connection with fresh state
+        self.servers[server_id] = MCPServerConnection(server_id, self._configs[server_id])
+        return await self.servers[server_id].connect()
+
+    async def start_health_check(self, interval: int = 30):
+        """Start periodic health checks for connected servers."""
+        self._health_check_interval = interval
+        self._health_check_task = asyncio.create_task(self._health_check_loop())
+        logger.info(f"Started health check loop (every {interval}s)")
+
+    async def stop_health_check(self):
+        """Stop the health check background task."""
+        if self._health_check_task and not self._health_check_task.done():
+            self._health_check_task.cancel()
+            try:
+                await self._health_check_task
+            except asyncio.CancelledError:
+                pass
+            self._health_check_task = None
+
+    async def _health_check_loop(self):
+        """Periodically ping connected servers, reconnect dead ones."""
+        while True:
+            await asyncio.sleep(self._health_check_interval)
+            for server_id in list(self.enabled_servers):
+                conn = self.servers.get(server_id)
+                if not conn:
+                    continue
+
+                if conn.status == ServerStatus.CONNECTED:
+                    alive = await conn.ping()
+                    if not alive:
+                        logger.warning(f"Health check: {server_id} is dead, reconnecting")
+                        await self._reconnect(server_id)
+
+                elif conn.status == ServerStatus.ERROR:
+                    logger.info(f"Health check: {server_id} in ERROR state, reconnecting")
+                    await self._reconnect(server_id)
 
     async def shutdown(self):
         """Disconnect from all servers."""
+        await self.stop_health_check()
         for conn in self.servers.values():
             await conn.disconnect()
         self.servers.clear()
