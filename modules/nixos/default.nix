@@ -199,6 +199,7 @@ in {
           "/home/${cfg.user}/.npm"  # For npx-based MCP servers
           "/home/${cfg.user}/.calendars"  # For mcp-dav calendar writes
           "/home/${cfg.user}/.contacts"   # For mcp-dav contact writes
+          "/home/${cfg.user}/.local/share/vdirsyncer"  # For vdirsyncer sync status DB
         ];
         PrivateTmp = true;
       };
