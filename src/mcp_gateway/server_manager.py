@@ -175,8 +175,10 @@ class MCPServerConnection:
             return content_list
 
         except Exception as e:
-            # Detect transport/connection failures and mark server as broken
-            if self._is_transport_error(e):
+            # Detect transport/connection failures and mark server as broken.
+            # An empty exception message is a strong signal the session is
+            # dead (stdio pipes open but subprocess event loop gone).
+            if self._is_transport_error(e) or not str(e):
                 self.status = ServerStatus.ERROR
                 self.error = f"Transport error: {e}"
                 logger.warning(f"Server {self.server_id} transport error: {e}")
@@ -207,11 +209,17 @@ class MCPServerConnection:
         return any(phrase in msg for phrase in transport_phrases)
 
     async def ping(self) -> bool:
-        """Check if the server connection is still alive."""
+        """Check if the server connection is still alive.
+
+        Uses list_tools() instead of send_ping() because ping only tests
+        the transport layer.  A stdio subprocess can keep pipes open while
+        its event loop is dead, so ping succeeds while tool calls fail.
+        list_tools() exercises the full request/response path.
+        """
         if self.status != ServerStatus.CONNECTED or self._session is None:
             return False
         try:
-            await self._session.send_ping()
+            await asyncio.wait_for(self._session.list_tools(), timeout=10.0)
             return True
         except Exception as e:
             logger.warning(f"Health check failed for {self.server_id}: {e}")
