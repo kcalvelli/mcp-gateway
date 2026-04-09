@@ -69,11 +69,23 @@ let
   # Build enabled servers config
   enabledServers = lib.filterAttrs (n: v: v.enable) cfg.servers;
 
-  # Convert to mcpServers format
+  # Convert to mcpServers format.
+  #
+  # Non-stdio entries get BOTH `transport` and `type` fields:
+  #   - `transport` is what mcp-gateway's own python parser expects
+  #     (server_manager.py: `config.get("transport", "stdio")`)
+  #   - `type` is what claude-code's MCP config schema expects; it
+  #     rejects entries with the wrong shape, dropping the entire
+  #     mcpServers block on parse failure
+  # Both consumers ignore the field they don't recognize, so emitting
+  # both keeps a single shared file usable from both sides.
   serverConfig = lib.mapAttrs (
     name: server:
     { }
-    // lib.optionalAttrs (server.transport != "stdio") { transport = server.transport; }
+    // lib.optionalAttrs (server.transport != "stdio") {
+      transport = server.transport;
+      type = server.transport;
+    }
     // lib.optionalAttrs (server.command != "") { command = server.command; }
     // lib.optionalAttrs (server.args != [ ]) { args = server.args; }
     // lib.optionalAttrs (server.url != null) { url = server.url; }
