@@ -12,7 +12,7 @@ mcp-gateway is a universal MCP (Model Context Protocol) gateway that aggregates 
 
 **Security Model**: No application-level authentication. Network security is provided by Tailscale - only devices on your tailnet can access the gateway.
 
-**Note**: This is a generic MCP gateway. Distribution-specific content (system prompts, OpenSpec commands, shell aliases) should be added by the consuming project (e.g., axios).
+**Note**: This is a generic MCP gateway. Distribution-specific content (system prompts, OpenSpec commands, shell aliases) should be added by the consuming project (e.g., cairn).
 
 ## Architecture
 
@@ -95,6 +95,6 @@ services.mcp-gateway = {
 
 ## Related Projects
 
-- [axios](https://github.com/kcalvelli/axios) - NixOS distribution (imports this)
-- [axios-ai-mail](https://github.com/kcalvelli/axios-ai-mail) - Email MCP server
+- [cairn](https://github.com/kcalvelli/cairn) - NixOS distribution (imports this)
+- [cairn-mail](https://github.com/kcalvelli/cairn-mail) - Email MCP server
 - [mcp-dav](https://github.com/kcalvelli/mcp-dav) - Calendar/contacts MCP server

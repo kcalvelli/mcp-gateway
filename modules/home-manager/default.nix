@@ -8,7 +8,7 @@
 # - Gemini CLI skill (~/.gemini/skills/mcp-cli/SKILL.md) — on-demand MCP tool discovery
 #
 # Server definitions are passed via the `servers` option, allowing
-# the caller (axios or user config) to provide fully resolved paths.
+# the caller (cairn or user config) to provide fully resolved paths.
 {
   config,
   lib,

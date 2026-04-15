@@ -1,8 +1,8 @@
 # NixOS module for mcp-gateway
 # Provides the systemd service and optional Tailscale Services integration
 #
-# When used with axios, set tailscaleServe.enable = true to register as a
-# Tailscale Service with unique DNS: axios-mcp-gateway.<tailnet>.ts.net
+# When used with cairn, set tailscaleServe.enable = true to register as a
+# Tailscale Service with unique DNS: cairn-mcp-gateway.<tailnet>.ts.net
 { config, lib, pkgs, ... }:
 
 with lib;
@@ -77,7 +77,7 @@ in {
       description = "Open firewall port for the web UI.";
     };
 
-    # Tailscale Services integration (requires axios networking.tailscale module)
+    # Tailscale Services integration (requires cairn networking.tailscale module)
     tailscaleServe = {
       enable = mkEnableOption ''
         Tailscale Services to expose mcp-gateway across your tailnet.
@@ -85,12 +85,12 @@ in {
 
         Requires:
         - networking.tailscale.authMode = "authkey" (tag-based identity)
-        - networking.tailscale.services option (from axios)
+        - networking.tailscale.services option (from cairn)
       '';
 
       serviceName = mkOption {
         type = types.str;
-        default = "axios-mcp-gateway";
+        default = "cairn-mcp-gateway";
         description = ''
           Tailscale Service name. The service will be available at:
           https://<serviceName>.<tailnet>.ts.net
@@ -108,7 +108,7 @@ in {
       };
     };
 
-    # PWA desktop entry options (for axios home-manager integration)
+    # PWA desktop entry options (for cairn home-manager integration)
     pwa = {
       enable = mkEnableOption "Generate MCP Gateway PWA desktop entry";
 
@@ -213,7 +213,7 @@ in {
 
     # Tailscale Services registration
     # Provides unique DNS name: <serviceName>.<tailnet>.ts.net
-    # Uses axios's networking.tailscale.services infrastructure
+    # Uses cairn's networking.tailscale.services infrastructure
     networking.tailscale.services.${cfg.tailscaleServe.serviceName} = mkIf cfg.tailscaleServe.enable {
       enable = true;
       backend = "http://127.0.0.1:${toString cfg.port}";

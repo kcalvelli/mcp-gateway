@@ -1,7 +1,7 @@
 """MCP Streamable HTTP Transport for mcp-gateway.
 
 Implements the MCP Streamable HTTP transport specification (2025-06-18),
-allowing Open WebUI, axios-ai-chat, and other MCP clients to connect
+allowing Open WebUI, cairn-chat, and other MCP clients to connect
 to the gateway over Tailscale.
 
 Reference: https://modelcontextprotocol.io/specification/2025-06-18/basic/transports

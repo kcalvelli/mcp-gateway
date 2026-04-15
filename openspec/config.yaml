@@ -18,8 +18,8 @@ context: |
   - Direct Claude.ai integration (not technically feasible)
 
   Related projects:
-  - axios - NixOS framework that imports this
-  - axios-ai-mail - Email MCP server
+  - cairn - NixOS framework that imports this
+  - cairn-mail - Email MCP server
   - mcp-dav - Calendar/contacts MCP server
 
 rules:

@@ -2,7 +2,7 @@
 
 ## Summary
 
-Remove the OAuth2 authentication layer from mcp-gateway and rely on Tailscale for network-level security. This simplifies the codebase and unblocks MCP Streamable HTTP integrations (Open WebUI, future axios-ai-chat).
+Remove the OAuth2 authentication layer from mcp-gateway and rely on Tailscale for network-level security. This simplifies the codebase and unblocks MCP Streamable HTTP integrations (Open WebUI, future cairn-chat).
 
 ## Motivation
 
@@ -13,7 +13,7 @@ Remove the OAuth2 authentication layer from mcp-gateway and rely on Tailscale fo
 - Open WebUI and other clients cannot connect via native MCP
 
 ### New Vision
-- All clients (axios-ai-chat, Open WebUI, etc.) run on the Tailscale network
+- All clients (cairn-chat, Open WebUI, etc.) run on the Tailscale network
 - Tailscale already provides:
   - Device authentication (every device is identified)
   - End-to-end encryption (WireGuard)
