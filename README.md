@@ -1,6 +1,10 @@
 # mcp-gateway
 
+> Part of the [Cairn ecosystem](https://github.com/kcalvelli/cairn) — the declarative foundation for local-first AI agents on NixOS.
+
 Universal MCP Gateway - Aggregates multiple MCP (Model Context Protocol) servers behind a single interface.
+
+![MCP Gateway — Servers view](docs/images/servers.png)
 
 ## Features
 
